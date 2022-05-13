@@ -216,7 +216,7 @@ int main(int argc, char ** argv)
     int i = 0;
     while((!terminate || i < 100) && !done) {
         update_signals(i);
-        mpr_data_recorder_poll(rec, 10);
+        mpr_data_recorder_poll(rec, 200);
         ++i;
     }
 

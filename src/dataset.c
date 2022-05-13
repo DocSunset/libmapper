@@ -85,7 +85,7 @@ void mpr_data_recorder_arm(mpr_data_recorder rec)
             snprintf(name, name_len, "%s/%s", sig->name, sig->dev->name);
             rec->sigs[i] = mpr_sig_new(rec->dev, MPR_DIR_IN, name, sig->len,
                                        sig->type, sig->unit, sig->min, sig->max, &sig->num_inst, 0, 0);
-                                       /* TODO: HANDLER */
+            mpr_obj_set_prop((mpr_obj)rec->sigs[i], MPR_PROP_DATA, NULL, 1, MPR_PTR, &rec->data, 0);
             /* TODO: mark the local copy as such */
             free(name);
         }
@@ -107,8 +107,21 @@ int mpr_data_recorder_get_is_armed(mpr_data_recorder rec)
     return rec->armed;
 }
 
+static void sig_handler(mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int length,
+        mpr_type type, const void * value, mpr_time time)
+{
+    mpr_dataset data = mpr_obj_get_prop_as_ptr(sig, MPR_PROP_DATA, 0);
+    printf("handler for %s\n", sig->name);
+}
+
 void mpr_data_recorder_start(mpr_data_recorder rec)
 {
+    RETURN_UNLESS(mpr_dev_get_is_ready(rec->dev));
+    if (!mpr_data_recorder_get_is_armed(rec)) mpr_data_recorder_arm(rec);
+    for (unsigned int i = 0; i < rec->data->num_sigs; ++i)
+    {
+        mpr_sig_set_cb(rec->sigs[i], sig_handler, MPR_SIG_ALL);
+    }
     rec->recording = 1;
 }
 
