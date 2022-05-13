@@ -536,7 +536,77 @@ void mpr_map_remove_scope(mpr_map map, mpr_dev device);
 
 /** @} */ /* end of group Maps */
 
-/** @} */ /* end of group Objects */
+/*** Datasets ***/
+
+/*! @defgroup datasets Datasets
+
+     @{ Datasets provide a way of recording signal data e.g. so that it can be used by devices that
+        learn from signal data in order to operate, such as preset interpolation and machine
+        learning algorithms. */
+
+/*! Create a new dataset. 
+ *  \param name         A short descriptive string to label the dataset.
+ *  \param num_signals  The number of signals in this dataset.
+ *  \param signals      Array of signal data structures.
+ *  \return             A newly created dataset data structure. */
+mpr_dataset mpr_dataset_new(const char * name, unsigned int num_signals, mpr_sig * signals);
+
+/*! Free resources used by this dataset.
+ *  \param dataset      The dataset to free. */
+void mpr_dataset_free(mpr_dataset dataset);
+
+/*! Create a new data recorder. 
+ *  \param dataset      The dataset to record into. The signals in this dataset will be connected
+ *                      to by the recorder. The recorder keeps a reference to this dataset; use of
+ *                      the recorder after the dataset has been freed may cause undefined behavior.
+ *  \param graph        A previously allocated graph structure to use. If 0, one will be allocated
+ *                      for use with this dataset.
+ *  \return             A new recorder device */
+mpr_data_recorder mpr_data_recorder_new(mpr_dataset dataset, mpr_graph graph);
+
+/*! Free resources used by this data recorder.
+ *  \param recorder     The recorder to free. */
+void mpr_data_recorder_free(mpr_data_recorder recorder);
+
+/*! Arm a recorder. This causes a connection to be established with the
+ *  signals in the dataset associated with the recorder so that they can be recorded immediately
+ *  when calling `mpr_data_recorder_start`.
+ *  \param recorder     The recorder to arm */
+void mpr_data_recorder_arm(mpr_data_recorder recorder);
+
+/*! Check the network for incoming connections and data to record.
+ *  After arming a dataset for recording, it may take a moment for remote devices to recognize the
+ *  request and start to send their signal data to the dataset for recording. This function causes
+ *  incoming messages from the network to be handled so that the connection can be established.
+ *  Furthermore, while recording this must be called so that incoming data will be receieved and
+ *  stored.
+ *  \param recorder     The recorder to poll.
+ *  \param block_ms     Number of milliseconds to block waiting for messages, or 0 for non-blocking
+ *                      behaviour.
+ *  \return             The number of messages handled. */
+int mpr_data_recorder_poll(mpr_data_recorder recorder, int block_ms);
+
+/*! Check if a recorder is armed and ready to start recording.
+ *  \param recorder     The recorder to check.
+ *  \return             Non-zero if the recorder is ready to record. Zero otherwise. */
+int mpr_data_recorder_get_is_armed(mpr_data_recorder recorder);
+
+/*! Disarm a recorder. This causes connections to the dataset's signals to be severed, which may
+ *  save some CPU and network bandwidth.
+ *  \param recorder     The recorder to disarm. */
+void mpr_data_recorder_disarm(mpr_data_recorder recorder);
+
+/*! Start recording data into a dataset. If the recorder was not armed, there may be a delay between
+ *  calling this function and recording actually starting, while the recorder connects to remote
+ *  signals.
+ *  \param recorder     The recorder to record with. */
+void mpr_data_recorder_start(mpr_data_recorder recorder);
+
+/*! Stop recording data into a dataset. If the recorder is not recording this has no effect.
+ *  \param recorder     The recorder to stop recording with. */
+void mpr_data_recorder_stop(mpr_data_recorder recorder);
+
+/** @} */ /* end of group Datasets */
 
 /*** Lists ***/
 

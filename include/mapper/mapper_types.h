@@ -19,6 +19,12 @@ typedef void *mpr_sig;
 /*! An internal structure defining a mapping between a set of signals. */
 typedef void *mpr_map;
 
+/*! An internal structure defining a dataset of recorded signal events. */
+typedef void *mpr_dataset;
+
+/*! An internal structure defining a dataset recorder. */
+typedef void *mpr_data_recorder;
+
 /*! An internal structure defining a list of objects. */
 typedef void **mpr_list;
 

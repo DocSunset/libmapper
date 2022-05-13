@@ -604,4 +604,18 @@ typedef struct _mpr_msg
     int num_atoms;
 } *mpr_msg;
 
+/**** Datasets ****/
+typedef struct _mpr_dataset {
+    mpr_obj_t obj;
+    const char * name;
+    char * dev_name;
+} mpr_dataset_t, *mpr_dataset;
+
+typedef struct _mpr_data_recorder {
+    mpr_dev dev;
+    int armed;
+    int recording;
+    mpr_dataset data;
+} mpr_data_recorder_t, *mpr_data_recorder;
+
 #endif /* __MPR_TYPES_H__ */

@@ -36,6 +36,7 @@ if WINDOWS_DLL
         testspeed \
         testunmap \
         testvector \
+        testdatasetrecord \
         test
 
     test_all_ordered = \
@@ -65,6 +66,7 @@ if WINDOWS_DLL
         testsignalhierarchy \
         testsetremote \
         testselfmap \
+        testdatasetrecord \
         test
 
 else
@@ -100,6 +102,7 @@ else
         testthread \
         testunmap \
         testvector \
+        testdatasetrecord \
         test
 
     test_all_ordered = \
@@ -131,6 +134,7 @@ else
         testsignalhierarchy \
         testsetremote \
         testselfmap \
+        testdatasetrecord \
         test
 
 endif
@@ -258,6 +262,10 @@ testunmap_LDADD = $(TEST_LDADD)
 testvector_CFLAGS = $(TEST_CFLAGS)
 testvector_SOURCES = testvector.c
 testvector_LDADD = $(TEST_LDADD)
+
+testdatasetrecord_CFLAGS = $(TEST_CFLAGS)
+testdatasetrecord_SOURCES = testdatasetrecord.c
+testdatasetrecord_LDADD = $(TEST_LDADD)
 
 tests: all
 	for i in $(test_all_ordered); do echo Running $$i; ./$$i -qtf; done
