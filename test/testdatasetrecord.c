@@ -200,9 +200,13 @@ int main(int argc, char ** argv)
     data = mpr_dataset_new("test_dataset", NUM_SIGS, sigs);
     rec = mpr_data_recorder_new(data, 0);
 
+    eprintf("Waiting for recorder device.\n");
+    while(!done && !mpr_data_recorder_get_is_ready(rec)) mpr_data_recorder_poll(rec, 50);
+
     eprintf("Arming dataset.\n");
     mpr_data_recorder_arm(rec);
 
+    eprintf("Waiting for record arm.\n");
     while(!done && !mpr_data_recorder_get_is_armed(rec)) mpr_data_recorder_poll(rec, 50);
 
     eprintf("Starting recording.\n");

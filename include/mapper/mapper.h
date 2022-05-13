@@ -568,6 +568,12 @@ mpr_data_recorder mpr_data_recorder_new(mpr_dataset dataset, mpr_graph graph);
  *  \param recorder     The recorder to free. */
 void mpr_data_recorder_free(mpr_data_recorder recorder);
 
+/*! Detect whether a recorder is completely initialized.
+ *  \param recorder     The recorder to query.
+ *  \return             Non-zero if recorder is completely initialized, i.e., has an allocated
+ *                      receiving port and unique identifier. Zero otherwise. */
+int mpr_data_recorder_get_is_ready(mpr_data_recorder recorder);
+
 /*! Arm a recorder. This causes a connection to be established with the
  *  signals in the dataset associated with the recorder so that they can be recorded immediately
  *  when calling `mpr_data_recorder_start`.

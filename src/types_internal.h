@@ -609,7 +609,9 @@ typedef struct _mpr_dataset {
     mpr_obj_t obj;
     const char * name;
     char * dev_name;
+    size_t dev_name_len;
     mpr_sig * sigs;
+    unsigned int num_sigs;
 } mpr_dataset_t, *mpr_dataset;
 
 typedef struct _mpr_data_recorder {
@@ -617,6 +619,8 @@ typedef struct _mpr_data_recorder {
     int armed;
     int recording;
     mpr_dataset data;
+    mpr_sig * sigs;
+    mpr_map * maps;
 } mpr_data_recorder_t, *mpr_data_recorder;
 
 #endif /* __MPR_TYPES_H__ */
