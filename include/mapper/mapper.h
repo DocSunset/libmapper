@@ -555,6 +555,19 @@ mpr_dataset mpr_dataset_new(const char * name, unsigned int num_signals, mpr_sig
  *  \param dataset      The dataset to free. */
 void mpr_dataset_free(mpr_dataset dataset);
 
+/*! Add a data record to a dataset. This is called internally by data recorders, but can also be
+ *  called manually by the user.
+ *  \param dataset      The dataset to add the record to.
+ *  \param sig          The signal that the data concerns.
+ *  \param evt          The type of signal event.
+ *  \param instance     The instance affected by the event.
+ *  \param length       The length of the data associated with the event.
+ *  \param type         The type of the data associated with the event.
+ *  \param value        A pointer to the data associated with the event.
+ *  \param time         The time at which the event took place. */
+void mpr_dataset_add_record(mpr_dataset data, mpr_sig sig, mpr_sig_evt evt, mpr_id instance,
+                            int length, mpr_type type, const void * value, mpr_time time);
+
 /*! Create a new data recorder. 
  *  \param dataset      The dataset to record into. The signals in this dataset will be connected
  *                      to by the recorder. The recorder keeps a reference to this dataset; use of

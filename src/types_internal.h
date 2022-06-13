@@ -605,6 +605,16 @@ typedef struct _mpr_msg
 } *mpr_msg;
 
 /**** Datasets ****/
+typedef struct _mpr_data_record {
+    mpr_sig sig;
+    mpr_sig_evt evt;
+    mpr_id instance;
+    int length;
+    mpr_type type;
+    void * value;
+    mpr_time time;
+} mpr_data_record_t, *mpr_data_record;
+
 typedef struct _mpr_dataset {
     mpr_obj_t obj;
     const char * name;

@@ -50,6 +50,11 @@ void mpr_dataset_free(mpr_dataset data)
     free(data);
 }
 
+void mpr_dataset_add_record(mpr_dataset data, mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int length,
+                            mpr_type type, const void * value, mpr_time time)
+{
+}
+
 mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, mpr_graph g)
 {
     mpr_data_recorder rec = malloc(sizeof(mpr_data_recorder_t));
@@ -97,22 +102,6 @@ int mpr_data_recorder_poll(mpr_data_recorder rec, int block_ms)
     return mpr_dev_poll(rec->dev, block_ms);
 }
 
-void mpr_data_recorder_arm(mpr_data_recorder rec)
-{
-    RETURN_UNLESS(mpr_dev_get_is_ready(rec->dev));
-    if (rec->maps[0] == 0) for (unsigned int i = 0; i < rec->data->num_sigs; ++i)
-    {
-        /* when the recorder is first armed, make maps */
-        mpr_sig remote_sig = rec->data->sigs[i];
-        mpr_sig local_sig  = rec->sigs[i];
-        rec->maps[i] = mpr_map_new(1, &remote_sig, 1, &local_sig);
-        mpr_obj_set_prop((mpr_obj)rec->maps[i], MPR_PROP_EXPR, NULL, 1, MPR_STR, "y=x", 1);
-        mpr_obj_push((mpr_obj)rec->maps[i]);
-        mpr_sig_set_cb(local_sig, sig_handler, MPR_SIG_ALL);
-    }
-    rec->armed = 1;
-}
-
 void mpr_data_recorder_disarm(mpr_data_recorder rec)
 {
     rec->armed = 0;
@@ -126,9 +115,10 @@ int mpr_data_recorder_get_is_armed(mpr_data_recorder rec)
 static void sig_handler(mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int length,
         mpr_type type, const void * value, mpr_time time)
 {
-    mpr_data_recorder rec = mpr_obj_get_prop_as_ptr(sig, MPR_PROP_DATA, 0);
+    mpr_data_recorder rec = mpr_obj_get_prop_as_ptr((mpr_obj)sig, MPR_PROP_DATA, 0);
     RETURN_UNLESS(mpr_data_recorder_get_is_recording(rec));
     printf("handler for %s\n", sig->name);
+    mpr_dataset_add_record(rec->data, sig, evt, instance, length, type, value, time);
 }
 
 void mpr_data_recorder_start(mpr_data_recorder rec)
@@ -148,3 +138,18 @@ int mpr_data_recorder_get_is_recording(mpr_data_recorder rec)
     return rec->recording;
 }
 
+void mpr_data_recorder_arm(mpr_data_recorder rec)
+{
+    RETURN_UNLESS(mpr_dev_get_is_ready(rec->dev));
+    if (rec->maps[0] == 0) for (unsigned int i = 0; i < rec->data->num_sigs; ++i)
+    {
+        /* when the recorder is first armed, make maps */
+        mpr_sig remote_sig = rec->data->sigs[i];
+        mpr_sig local_sig  = rec->sigs[i];
+        rec->maps[i] = mpr_map_new(1, &remote_sig, 1, &local_sig);
+        mpr_obj_set_prop((mpr_obj)rec->maps[i], MPR_PROP_EXPR, NULL, 1, MPR_STR, "y=x", 1);
+        mpr_obj_push((mpr_obj)rec->maps[i]);
+        mpr_sig_set_cb(local_sig, sig_handler, MPR_SIG_ALL);
+    }
+    rec->armed = 1;
+}
