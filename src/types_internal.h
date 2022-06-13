@@ -618,17 +618,23 @@ typedef struct _mpr_data_record {
 typedef struct _mpr_dataset {
     mpr_obj_t obj;
     const char * name;
-    mpr_sig * sigs;
-    unsigned int num_sigs;
+    mpr_data_record records;
+    size_t num_records;
+    size_t num_records_allocated;
+    void * data;
+    void * data_write_position;
+    size_t data_allocated;
 } mpr_dataset_t, *mpr_dataset;
 
 typedef struct _mpr_data_recorder {
     mpr_dev dev;
+    int mapped;
     int armed;
     int recording;
-    mpr_dataset data;
+    unsigned int num_sigs;
+    mpr_sig * remote_sigs; /* TODO: make the map in recorder_new so you don't need to track this */
     mpr_sig * sigs;
-    mpr_map * maps;
+    mpr_dataset data;
 } mpr_data_recorder_t, *mpr_data_recorder;
 
 #endif /* __MPR_TYPES_H__ */

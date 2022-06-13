@@ -546,10 +546,8 @@ void mpr_map_remove_scope(mpr_map map, mpr_dev device);
 
 /*! Create a new dataset. 
  *  \param name         A short descriptive string to label the dataset.
- *  \param num_signals  The number of signals in this dataset.
- *  \param signals      Array of signal data structures.
  *  \return             A newly created dataset data structure. */
-mpr_dataset mpr_dataset_new(const char * name, unsigned int num_signals, mpr_sig * signals);
+mpr_dataset mpr_dataset_new(const char * name);
 
 /*! Free resources used by this dataset.
  *  \param dataset      The dataset to free. */
@@ -572,10 +570,14 @@ void mpr_dataset_add_record(mpr_dataset data, mpr_sig sig, mpr_sig_evt evt, mpr_
  *  \param dataset      The dataset to record into. The signals in this dataset will be connected
  *                      to by the recorder. The recorder keeps a reference to this dataset; use of
  *                      the recorder after the dataset has been freed may cause undefined behavior.
+ *  \param num_signals  The number of signals to record.
+ *  \param signals      Array of signals to record.
  *  \param graph        A previously allocated graph structure to use. If 0, one will be allocated
  *                      for use with this dataset.
  *  \return             A new recorder device */
-mpr_data_recorder mpr_data_recorder_new(mpr_dataset dataset, mpr_graph graph);
+mpr_data_recorder mpr_data_recorder_new(mpr_dataset dataset,
+                                        unsigned int num_signals, mpr_sig * signals,
+                                        mpr_graph graph);
 
 /*! Free resources used by this data recorder.
  *  \param recorder     The recorder to free. */
