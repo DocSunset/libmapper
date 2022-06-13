@@ -608,8 +608,6 @@ typedef struct _mpr_msg
 typedef struct _mpr_dataset {
     mpr_obj_t obj;
     const char * name;
-    char * dev_name;
-    size_t dev_name_len;
     mpr_sig * sigs;
     unsigned int num_sigs;
 } mpr_dataset_t, *mpr_dataset;
