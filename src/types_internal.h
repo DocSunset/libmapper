@@ -621,9 +621,9 @@ typedef struct _mpr_dataset {
     mpr_data_record records;
     size_t num_records;
     size_t num_records_allocated;
-    void * data;
-    void * data_write_position;
-    size_t data_allocated;
+    void * values;
+    void * values_write_position;
+    size_t values_bytes_allocated;
 } mpr_dataset_t, *mpr_dataset;
 
 typedef struct _mpr_data_recorder {

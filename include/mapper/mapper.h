@@ -540,9 +540,37 @@ void mpr_map_remove_scope(mpr_map map, mpr_dev device);
 
 /*! @defgroup datasets Datasets
 
-     @{ Datasets provide a way of recording signal data e.g. so that it can be used by devices that
-        learn from signal data in order to operate, such as preset interpolation and machine
-        learning algorithms. */
+@{
+Datasets provide a way of recording signal data e.g. so that it can be used by devices that
+learn from signal data in order to operate, such as preset interpolation and machine
+learning algorithms. */
+
+/*! Create a new data record. This is a local data structure only, unless it is added to a dataset.
+ *  \param sig          The signal that the data concerns.
+ *  \param evt          The type of signal event.
+ *  \param instance     The instance affected by the event.
+ *  \param length       The length of the data associated with the event.
+ *  \param type         The type of the data associated with the event.
+ *  \param value        A pointer to the data associated with the event.
+ *  \param time         The time at which the event took place. 
+ *  \return             A newly created data record. */
+mpr_data_record mpr_data_record_new(mpr_sig sig, mpr_sig_evt evt, mpr_id instance,
+                                    int length, mpr_type type, const void * value, mpr_time time);
+
+/*! Free resources used by this data record
+ *  \param record       The data record to free. */
+void mpr_data_record_free(mpr_data_record record);
+
+/*! Query a data record.
+ *  \param record       The record to query.
+ *  \return             The requested information. */
+mpr_sig      mpr_data_record_get_sig     (const mpr_data_record record);
+mpr_sig_evt  mpr_data_record_get_evt     (const mpr_data_record record);
+mpr_id       mpr_data_record_get_instance(const mpr_data_record record);
+int          mpr_data_record_get_length  (const mpr_data_record record);
+mpr_type     mpr_data_record_get_type    (const mpr_data_record record);
+const void * mpr_data_record_get_value   (const mpr_data_record record);
+mpr_time     mpr_data_record_get_time    (const mpr_data_record record);
 
 /*! Create a new dataset. 
  *  \param name         A short descriptive string to label the dataset.
@@ -554,17 +582,23 @@ mpr_dataset mpr_dataset_new(const char * name);
 void mpr_dataset_free(mpr_dataset dataset);
 
 /*! Add a data record to a dataset. This is called internally by data recorders, but can also be
- *  called manually by the user.
- *  \param dataset      The dataset to add the record to.
- *  \param sig          The signal that the data concerns.
- *  \param evt          The type of signal event.
- *  \param instance     The instance affected by the event.
- *  \param length       The length of the data associated with the event.
- *  \param type         The type of the data associated with the event.
- *  \param value        A pointer to the data associated with the event.
- *  \param time         The time at which the event took place. */
-void mpr_dataset_add_record(mpr_dataset data, mpr_sig sig, mpr_sig_evt evt, mpr_id instance,
-                            int length, mpr_type type, const void * value, mpr_time time);
+ *  called manually by the user. The data record is copied into the dataset, so the user remains
+ *  responsible for managing the lifetime of the record.
+ *  \param data         The dataset to add the record to.
+ *  \param record       The data record to add to the dataset. */
+void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record);
+
+/*! Get a data record from a dataset. 
+ *  \param data         The dataset to query.
+ *  \param idx          The index of the record to get.
+ *  \return             A data record, or null pointer in case the user requests an out of range
+ *                      record. The memory for this record is owned by the dataset and should not
+ *                      be freed by the user. */
+mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx);
+
+/*! Get the number of records in a dataset.
+ *  \param data         The dataset to inspect.
+ *  \return             The number of data records stored in the dataset */
 
 /*! Create a new data recorder. 
  *  \param dataset      The dataset to record into. The signals in this dataset will be connected
