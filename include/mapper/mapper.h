@@ -588,6 +588,11 @@ void mpr_dataset_free(mpr_dataset dataset);
  *  \param record       The data record to add to the dataset. */
 void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record);
 
+/*! Get the name of a dataset
+ *  \param data         The dataset to inspect.
+ *  \param return       The name of the dataset. */
+const char * mpr_dataset_get_name(mpr_dataset data);
+
 /*! Get a data record from a dataset. 
  *  \param data         The dataset to query.
  *  \param idx          The index of the record to get.
@@ -595,6 +600,11 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record);
  *                      record. The memory for this record is owned by the dataset and should not
  *                      be freed by the user. */
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx);
+
+/*! Get the number of data records stored in a dataset.
+ *  \param data         The dataset to query.
+ *  \return             The number of records stored in the dataset. */
+unsigned int mpr_dataset_get_num_records(mpr_dataset data);
 
 /*! Get the number of records in a dataset.
  *  \param data         The dataset to inspect.
@@ -625,7 +635,9 @@ int mpr_data_recorder_get_is_ready(mpr_data_recorder recorder);
 
 /*! Arm a recorder. This causes a connection to be established with the
  *  signals in the dataset associated with the recorder so that they can be recorded immediately
- *  when calling `mpr_data_recorder_start`.
+ *  when calling `mpr_data_recorder_start`. It may take some time for the connection to be
+ *  established, since all devices involved (including the sources of the signals to be recorded
+ *  and the recorder itself) must communicate on the network to set up the connection.
  *  \param recorder     The recorder to arm */
 void mpr_data_recorder_arm(mpr_data_recorder recorder);
 
@@ -651,15 +663,18 @@ int mpr_data_recorder_get_is_armed(mpr_data_recorder recorder);
  *  \param recorder     The recorder to disarm. */
 void mpr_data_recorder_disarm(mpr_data_recorder recorder);
 
-/*! Start recording data into a dataset. If the recorder was not armed, there may be a delay between
- *  calling this function and recording actually starting, while the recorder connects to remote
- *  signals.
+/*! Attempt to start recording data into a dataset. If the recorder is not armed, this has no effect.
  *  \param recorder     The recorder to record with. */
 void mpr_data_recorder_start(mpr_data_recorder recorder);
 
 /*! Stop recording data into a dataset. If the recorder is not recording this has no effect.
  *  \param recorder     The recorder to stop recording with. */
 void mpr_data_recorder_stop(mpr_data_recorder recorder);
+
+/*! Check if a recorder is recording.
+ *  \param recorder     The recorder to check.
+ *  \return             Non-zero if the recorder is ready to record. Zero otherwise. */
+int mpr_data_recorder_get_is_recording(mpr_data_recorder recorder);
 
 /** @} */ /* end of group Datasets */
 

@@ -70,9 +70,10 @@ int setup_device(const char *iface)
     return 1;
 }
 
-void update_signals(int i)
+unsigned int update_signals(int i)
 {
     int j, k, prop_length, length, instances;
+    unsigned int sent = 0;
     const void * prop_val;
     mpr_type type;
     i = i % 128;
@@ -105,21 +106,29 @@ void update_signals(int i)
                 out = fout;
         }
 
-        if (instances == 1) mpr_sig_set_value(sig, 0, length, type, out);
+        if (instances == 1) {
+            mpr_sig_set_value(sig, 0, length, type, out);
+            ++sent;
+        }
         else {
             if (i < 64) {
-                for (j = 0; j < instances; ++j)
+                for (j = 0; j < instances; ++j) {
                     mpr_sig_set_value(sig, mpr_sig_get_inst_id(sig, j, (MPR_STATUS_ACTIVE | MPR_STATUS_RESERVED)),
                                       length, type, out);
+                    ++sent;
+                }
             }
             else {
-                for (j = 0; j < instances; ++j)
+                for (j = 0; j < instances; ++j) {
                     mpr_sig_release_inst(sig, mpr_sig_get_inst_id(sig, j, (MPR_STATUS_ACTIVE | MPR_STATUS_RESERVED)));
+                    ++sent;
+                }
             }
         }
     }
 
     mpr_dev_poll(dev, 0);
+    return sent;
 }
 
 void cleanup_device()
@@ -199,35 +208,58 @@ int main(int argc, char ** argv)
     eprintf("Device ready, creating dataset.\n");
     data = mpr_dataset_new("test_dataset");
     rec = mpr_data_recorder_new(data, NUM_SIGS, sigs, 0);
+    if (done) goto done;
 
     eprintf("Waiting for recorder device.\n");
     while(!done && !mpr_data_recorder_get_is_ready(rec)) mpr_data_recorder_poll(rec, 50);
+    if (done) goto done;
 
     eprintf("Arming dataset.\n");
     mpr_data_recorder_arm(rec);
+    if (done) goto done;
 
     eprintf("Waiting for record arm.\n");
-    while(!done && !mpr_data_recorder_get_is_armed(rec)) mpr_data_recorder_poll(rec, 50);
+    while(!done && !mpr_data_recorder_get_is_armed(rec)) {
+        mpr_dev_poll(dev, 25);
+        mpr_data_recorder_poll(rec, 25);
+    }
+    if (done) goto done;
 
     eprintf("Starting recording.\n");
     mpr_data_recorder_start(rec);
+    if (done) goto done;
 
     eprintf("Entering loop.\n");
     int i = 0;
+    unsigned int updates_sent, updates_recorded;
+    updates_recorded = updates_sent = 0;
     while((!terminate || i < 100) && !done) {
-        update_signals(i);
+        updates_sent += update_signals(i);
         mpr_data_recorder_poll(rec, 200);
         ++i;
     }
 
+    eprintf("Stopping recorder.\n");
     mpr_data_recorder_stop(rec);
     mpr_data_recorder_disarm(rec);
 
-    /* TODO TEST ASSERTION GOES HERE */
+    eprintf("Checking number of records\n");
+    for (unsigned int i = 0; i < mpr_dataset_get_num_records(data); ++i) {
+        mpr_data_record record = mpr_dataset_get_record(data, i);
+        if (mpr_data_record_get_evt(record) == MPR_SIG_UPDATE) ++updates_recorded;
+    }
+
+    eprintf("%d signal updates noted, %d data records stored.\n", updates_sent, updates_recorded);
+    if (updates_recorded != updates_sent) result = 1;
 
   done:
+    eprintf("Cleaning up devices\n");
     cleanup_device();
+
+    eprintf("Releasing recorder\n");
     mpr_data_recorder_free(rec);
+
+    eprintf("Releasing dataset\n");
     mpr_dataset_free(data);
 
     printf("...................Test %s\x1B[0m.\n",

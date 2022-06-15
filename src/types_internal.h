@@ -611,7 +611,7 @@ typedef struct _mpr_data_record {
     mpr_id instance;
     int length;
     mpr_type type;
-    void * value;
+    const void * value;
     mpr_time time;
 } mpr_data_record_t, *mpr_data_record;
 
@@ -621,8 +621,8 @@ typedef struct _mpr_dataset {
     mpr_data_record records;
     size_t num_records;
     size_t num_records_allocated;
-    void * values;
-    void * values_write_position;
+    char * values;
+    char * values_write_position;
     size_t values_bytes_allocated;
 } mpr_dataset_t, *mpr_dataset;
 

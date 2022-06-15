@@ -57,6 +57,14 @@ if (!(a)) { trace_net(__VA_ARGS__); return ret; }
         printf("\x1B[32m-- <device '%s.?'::%p>\x1B[0m ", DEV->prefix, DEV);         \
     printf(__VA_ARGS__);                                                            \
 }
+#define trace_dataset(DATA, ...)                                                              \
+{                                                                                             \
+    if (!DATA)                                                                                \
+        printf("\x1B[32m-- <dataset>\x1B[0m ");                                               \
+    else                                                                                      \
+        printf("\x1B[32m-- <dataset '%s'>\x1B[0m ", mpr_dataset_get_name((mpr_dataset)DATA)); \
+    printf(__VA_ARGS__);                                                                      \
+}
 #define trace_net(...)  { printf("\x1B[33m-- <network>\x1B[0m  " __VA_ARGS__);}
 #define die_unless(a, ...) { if (!(a)) { printf("-- " __VA_ARGS__); assert(a); } }
 #else /* !DEBUG */
@@ -70,6 +78,7 @@ if (!(a)) { trace_net(__VA_ARGS__); return ret; }
 #define trace(...) {};
 #define trace_graph(...) {};
 #define trace_dev(...) {};
+#define trace_dataset(...) {};
 #define trace_net(...) {};
 #define die_unless(...) {};
 #endif /* __GNUC__ */

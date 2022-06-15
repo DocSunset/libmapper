@@ -73,6 +73,11 @@ mpr_dataset mpr_dataset_new(const char * name)
 #undef DATASET_INITIAL_VALUES
 #undef DATASET_INITIAL_RECORDS
 
+const char * mpr_dataset_get_name(mpr_dataset data)
+{
+    return data->name;
+}
+
 void mpr_dataset_free(mpr_dataset data)
 {
     free(data);
@@ -81,42 +86,59 @@ void mpr_dataset_free(mpr_dataset data)
 /* increase the allocated memory for data records in a dataset */
 static void _dataset_realloc_records(mpr_dataset data)
 {
+    trace_dataset(data, "Reallocating from %lu to %lu records.\n", data->num_records_allocated, 2 * data->num_records_allocated);
     /* we should probably consider using someone else's better implementation of a dynamic array... */
     data->records = reallocarray(data->records, 2 * data->num_records_allocated, sizeof(mpr_data_record_t));
     die_unless(data->records, "Failed to reallocate dataset `%s` records array\n", data->name);
     data->num_records_allocated = 2 * data->num_records_allocated;
+    trace_dataset(data, "Reallocation successful.\n");
+}
+
+static inline size_t _dataset_value_bytes_used(mpr_dataset data)
+{
+    return data->values_write_position - data->values;
+}
+
+static inline size_t _dataset_value_bytes_available(mpr_dataset data)
+{
+    return data->values_bytes_allocated - _dataset_value_bytes_used(data);
 }
 
 /* increase the allocated memory for data values in a dataset */
 static void _dataset_realloc_values(mpr_dataset data, size_t minimum_additional_bytes)
 {
     size_t new_values_array_size = 2 * data->values_bytes_allocated;
-    while (minimum_additional_bytes > new_values_array_size) new_values_array_size = 2 * new_values_array_size;
+    size_t write_pointer_offset = _dataset_value_bytes_used(data);
+    while (minimum_additional_bytes > new_values_array_size - data->values_bytes_allocated)
+        new_values_array_size = 2 * new_values_array_size;
+    trace_dataset(data, "%lu bytes requested. %lu bytes available. Reallocating from %lu to %lu value bytes.\n",
+                  minimum_additional_bytes, _dataset_value_bytes_available(data),
+                  data->values_bytes_allocated, new_values_array_size);
     data->values = realloc(data->values, new_values_array_size);
     die_unless(data->values, "Failed to reallocate dataset `%s` values array\n", data->name);
+    data->values_write_position = data->values + write_pointer_offset;
     data->values_bytes_allocated = new_values_array_size;
+    trace_dataset(data, "Reallocation successful.\n");
 }
 
 void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 {
-    /* we assume there is always room for one more record */
-    data->records[data->num_records] = *record;
 
-	/* we make sure there is enough room for the additional values */
-    size_t additional_value_bytes = mpr_type_get_size(record->type) * record->length;
-    if (data->values_bytes_allocated - (data->values_write_position - data->values) < additional_value_bytes)
-        _dataset_realloc_values(data, additional_value_bytes);
-    memcpy(data->values_write_position, record->value, additional_value_bytes);
+	/* copy values */
+    size_t value_bytes = mpr_type_get_size(record->type) * record->length;
+    if (_dataset_value_bytes_available(data) < value_bytes) _dataset_realloc_values(data, value_bytes);
+    memcpy(data->values_write_position, (void *)record->value, value_bytes);
+
+	/* copy record metadata */
+    if (data->num_records >= data->num_records_allocated) _dataset_realloc_records(data);
+    data->records[data->num_records] = *record;
     data->records[data->num_records].value = data->values_write_position;
 
-	/* increment and realloc if necessary */
+	/* adjust write positions */
+	/* it's important to do this last, since the write positions are used above as the position of the current
+     * record/values being recorded */
+    data->values_write_position = data->values_write_position + value_bytes;
     ++data->num_records;
-    if (data->num_records > data->num_records_allocated)
-        _dataset_realloc_records(data);
-
-    data->values_write_position = data->values_write_position + additional_value_bytes;
-    if (data->values_write_position - data->values > data->values_bytes_allocated)
-        _dataset_realloc_values(data, additional_value_bytes);
 }
 
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
@@ -140,7 +162,7 @@ mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs,
         TRACE_RETURN_UNLESS(sigs[i]->dev->name, NULL, "Cannot include uninitialized device in dataset.\n");
     }
     /* TODO: (quietly?) ignore NULL signals */
-    /* TODO: allow uninitialized devices into data recorders; just don't consider the recorder ready until all the devices are */
+    /* TODO: allow uninitialized devices into data recorders; just don't consider the recorder ready until all the devices are? */
 
     mpr_data_recorder rec = malloc(sizeof(mpr_data_recorder_t));
 
@@ -170,10 +192,13 @@ mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs,
         snprintf(name, name_len, "%s/%s", sig->dev->name, sig->name);
         rec->sigs[i] = mpr_sig_new(rec->dev, MPR_DIR_IN, name, sig->len,
                                    sig->type, sig->unit, sig->min, sig->max, &sig->num_inst, 0, 0);
-        mpr_obj_set_prop((mpr_obj)rec->sigs[i], MPR_PROP_DATA, 0, 1, MPR_PTR, &rec, 0);
+        mpr_obj_set_prop((mpr_obj)rec->sigs[i], MPR_PROP_DATA, 0, 1, MPR_PTR, rec, 0);
         /* TODO: mark the local recording destination as such for use by session managers */
         free(name);
     }
+
+    /* ideally we would like to set up maps immediately here while we know all the signals; then we wouldn't have to store
+     * the list and number of remote signals */
 
     return rec;
 }
@@ -188,6 +213,8 @@ void mpr_data_recorder_free(mpr_data_recorder rec)
 int mpr_data_recorder_get_is_ready(mpr_data_recorder rec)
 {
     return mpr_dev_get_is_ready(rec->dev);
+    /* if we eventually are able to create the maps in recorder_new,
+     * we should check here instead of in get_is_armed if the maps are ready as well as the device */
 }
 
 int mpr_data_recorder_poll(mpr_data_recorder rec, int block_ms)
@@ -200,27 +227,40 @@ void mpr_data_recorder_disarm(mpr_data_recorder rec)
     rec->armed = 0;
 }
 
+static inline int _recorder_is_mapped(mpr_data_recorder rec)
+{
+    return mpr_list_get_size(mpr_dev_get_maps(rec->dev, MPR_DIR_IN)) > 0;
+}
+
+static inline int _recorder_maps_are_ready(mpr_data_recorder rec)
+{
+    if (rec->mapped) return 1;
+    RETURN_ARG_UNLESS(_recorder_is_mapped(rec), 0);
+    for (mpr_list map_list = mpr_dev_get_maps(rec->dev, MPR_DIR_IN); map_list; map_list = mpr_list_get_next(map_list))
+        RETURN_ARG_UNLESS(mpr_map_get_is_ready((mpr_map)*map_list), 0);
+    return rec->mapped = 1;
+}
+
 int mpr_data_recorder_get_is_armed(mpr_data_recorder rec)
 {
-    return rec->armed;
+    return _recorder_maps_are_ready(rec) && rec->armed;
 }
 
 static void sig_handler(mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int length,
         mpr_type type, const void * value, mpr_time time)
 {
-    mpr_data_recorder rec = mpr_obj_get_prop_as_ptr((mpr_obj)sig, MPR_PROP_DATA, 0);
+    mpr_data_recorder rec = (void*)mpr_obj_get_prop_as_ptr((mpr_obj)sig, MPR_PROP_DATA, 0);
     RETURN_UNLESS(mpr_data_recorder_get_is_recording(rec));
 
     mpr_data_record record = mpr_data_record_new(sig, evt, instance, length, type, value, time);
     mpr_dataset_add_record(rec->data, record);
     mpr_data_record_free(record);
+	printf("data recorder signal handler completed\n");
 }
 
 void mpr_data_recorder_start(mpr_data_recorder rec)
 {
-    RETURN_UNLESS(mpr_dev_get_is_ready(rec->dev));
-    if (!mpr_data_recorder_get_is_armed(rec)) mpr_data_recorder_arm(rec);
-    rec->recording = 1;
+    rec->recording = mpr_dev_get_is_ready(rec->dev) && mpr_data_recorder_get_is_armed(rec) && _recorder_maps_are_ready(rec);
 }
 
 void mpr_data_recorder_stop(mpr_data_recorder rec)
@@ -236,7 +276,7 @@ int mpr_data_recorder_get_is_recording(mpr_data_recorder rec)
 void mpr_data_recorder_arm(mpr_data_recorder rec)
 {
     RETURN_UNLESS(mpr_dev_get_is_ready(rec->dev));
-    if (rec->mapped == 0) for (unsigned int i = 0; i < rec->num_sigs; ++i)
+    if (_recorder_is_mapped(rec) == 0) for (unsigned int i = 0; i < rec->num_sigs; ++i)
     {
         /* when the recorder is first armed, make maps */
         mpr_sig remote_sig = rec->remote_sigs[i];
