@@ -38,6 +38,7 @@ if WINDOWS_DLL
         testvector \
         testdatasetrecord \
         testdatasetaddrecord \
+        testdatasetsiglist \
         test
 
     test_all_ordered = \
@@ -69,6 +70,7 @@ if WINDOWS_DLL
         testselfmap \
         testdatasetrecord \
         testdatasetaddrecord \
+        testdatasetsiglist \
         test
 
 else
@@ -106,6 +108,7 @@ else
         testvector \
         testdatasetrecord \
         testdatasetaddrecord \
+        testdatasetsiglist \
         test
 
     test_all_ordered = \
@@ -139,6 +142,7 @@ else
         testselfmap \
         testdatasetrecord \
         testdatasetaddrecord \
+        testdatasetsiglist \
         test
 
 endif
@@ -274,6 +278,10 @@ testdatasetrecord_LDADD = $(TEST_LDADD)
 testdatasetaddrecord_CFLAGS = $(TEST_CFLAGS)
 testdatasetaddrecord_SOURCES = testdatasetaddrecord.c
 testdatasetaddrecord_LDADD = $(TEST_LDADD)
+
+testdatasetsiglist_CFLAGS = $(TEST_CFLAGS)
+testdatasetsiglist_SOURCES = testdatasetsiglist.c
+testdatasetsiglist_LDADD = $(TEST_LDADD)
 
 tests: all
 	for i in $(test_all_ordered); do echo Running $$i; ./$$i -qtf; done
