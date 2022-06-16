@@ -21,7 +21,8 @@ enum {
     MPR_MAP_IN          = 0x08,             /*!< Incoming maps. */
     MPR_MAP_OUT         = 0x10,             /*!< Outgoing maps. */
     MPR_MAP             = 0x18,             /*!< All maps. */
-    MPR_OBJ             = 0x1F,             /*!< All objects: devs, sigs, maps. */
+    MPR_DATASET         = 0x20,             /*!< Datasets. */
+    MPR_OBJ             = 0x3F,             /*!< All objects: devs, sigs, maps, datasets. */
     MPR_LIST            = 0x40,             /*!< Object query. */
     MPR_GRAPH           = 0x41,             /*!< Graph. */
     MPR_BOOL            = 'b',  /* 0x62 */  /*!< Boolean value. */

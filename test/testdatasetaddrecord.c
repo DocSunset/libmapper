@@ -88,7 +88,7 @@ int main(int argc, char ** argv)
     float upd2[] = {4.5};
     mpr_time time = {0,0};
 
-    mpr_dataset data = mpr_dataset_new("testdatasetaddrecord");
+    mpr_dataset data = mpr_dataset_new("testdatasetaddrecord", mpr_obj_get_graph((mpr_obj)dev));
 
     mpr_data_record in[3];
     in[0] = mpr_data_record_new(sig[0], MPR_SIG_UPDATE, 0, 1, MPR_INT32, (const void*)upd0, time);

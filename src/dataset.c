@@ -49,11 +49,26 @@ mpr_time     mpr_data_record_get_time    (const mpr_data_record record) { return
 
 #define DATASET_INITIAL_RECORDS 16
 #define DATASET_INITIAL_VALUES sizeof(float) * DATASET_INITIAL_RECORDS
-mpr_dataset mpr_dataset_new(const char * name)
+mpr_dataset mpr_dataset_new(const char * name, mpr_graph g)
 {
     RETURN_ARG_UNLESS(name, 0);
-    mpr_dataset data = malloc(sizeof(mpr_dataset_t));
-    /* TODO: initialize mpr_obj, properties, etc. */
+    if (!g) {
+        g = mpr_graph_new(0);
+        g->own = 0;
+    }
+
+    /* TODO: the dataset should be allocated by the graph, and graphs should have a list of datasets:
+     * data = (mpr_dataset)mpr_list_add_item((void**)&g->datasets, sizeof(mpr_dataset)); */
+    mpr_dataset data = calloc(1, sizeof(mpr_dataset_t));
+
+    data->obj.graph = g;
+    /* TODO: determine ID; probably from network through name resolution, as with devices */
+    /* TODO?: allow user data to be associated with the dataset? Is this handled generically through the property API? */
+    /* TODO: set up data->obj.props _mpr_dict */
+    /* TODO?: set up version? Not sure what this is for, but it seems to usually be linked to a mpr_tbl property */
+    data->obj.type = MPR_DATASET;
+    data->is_local = 1;
+
     /* TODO: should probably add name conflict resolution in the same way devices do so */
     data->name = strdup(name);
     die_unless(data->name, "Failed to malloc new dataset `%s` name string\n", name);
@@ -152,7 +167,30 @@ unsigned int mpr_dataset_get_num_records(mpr_dataset data)
     return data->num_records;
 }
 
-mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs, mpr_sig * sigs, mpr_graph g)
+static int _cmp_sigs_equality(const void *context_data, mpr_sig sig)
+{
+    mpr_id sig_id = *(mpr_id*)context_data;
+    mpr_id dev_id = *(mpr_id*)((char*)context_data + sizeof(mpr_id));
+    return ((sig_id == sig->obj.id) && (dev_id == sig->dev->obj.id));
+}
+
+mpr_list mpr_dataset_get_sigs(mpr_dataset data)
+{
+    mpr_list sigs = 0;
+    for (unsigned int i = 0; i < mpr_dataset_get_num_records(data); ++i) {
+        mpr_data_record record = mpr_dataset_get_record(data, i);
+        mpr_sig record_sig = mpr_data_record_get_sig(record);
+        mpr_list seen = mpr_list_new_query((const void**)&sigs,
+                                          (void*)_cmp_sigs_equality, "hh", record_sig->dev->obj.id, record_sig->obj.id);
+        if (mpr_list_get_size(seen) == 0) /* we haven't seen record_sig */ {
+            mpr_sig * s = mpr_list_add_item((void**)&sigs, sizeof(mpr_sig));
+            *s = record_sig;
+        }
+    }
+    return sigs;
+}
+
+mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs, mpr_sig * sigs)
 {
     RETURN_ARG_UNLESS(sigs, 0);
     RETURN_ARG_UNLESS(num_sigs > 0, 0);
@@ -176,6 +214,7 @@ mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs,
 
     /* set up device */
     {
+        mpr_graph g = data->obj.graph;
         char * dev_name = data_recorder_dev_name(data->name);
         rec->dev = mpr_dev_new(dev_name, g);
         free(dev_name);

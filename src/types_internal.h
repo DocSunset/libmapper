@@ -615,6 +615,8 @@ typedef struct _mpr_data_record {
     mpr_time time;
 } mpr_data_record_t, *mpr_data_record;
 
+/* TODO: we will probably need to distinguish between datasets in general, and those that have been copied
+ * to the local context */
 typedef struct _mpr_dataset {
     mpr_obj_t obj;
     const char * name;
@@ -624,6 +626,7 @@ typedef struct _mpr_dataset {
     char * values;
     char * values_write_position;
     size_t values_bytes_allocated;
+    int is_local;
 } mpr_dataset_t, *mpr_dataset;
 
 typedef struct _mpr_data_recorder {

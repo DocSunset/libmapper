@@ -574,8 +574,10 @@ mpr_time     mpr_data_record_get_time    (const mpr_data_record record);
 
 /*! Create a new dataset. 
  *  \param name         A short descriptive string to label the dataset.
+ *  \param graph        A previously allocated graph structure to use. If 0, one will be allocated
+ *                      for use with this dataset.
  *  \return             A newly created dataset data structure. */
-mpr_dataset mpr_dataset_new(const char * name);
+mpr_dataset mpr_dataset_new(const char * name, mpr_graph graph);
 
 /*! Free resources used by this dataset.
  *  \param dataset      The dataset to free. */
@@ -606,9 +608,10 @@ mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx);
  *  \return             The number of records stored in the dataset. */
 unsigned int mpr_dataset_get_num_records(mpr_dataset data);
 
-/*! Get the number of records in a dataset.
+/*! Get a list of signals recorded in a dataset.
  *  \param data         The dataset to inspect.
- *  \return             The number of data records stored in the dataset */
+ *  \return             A mpr_list of signals found in the dataset. */
+mpr_list mpr_dataset_get_sigs(mpr_dataset data);
 
 /*! Create a new data recorder. 
  *  \param dataset      The dataset to record into. The signals in this dataset will be connected
@@ -616,12 +619,9 @@ unsigned int mpr_dataset_get_num_records(mpr_dataset data);
  *                      the recorder after the dataset has been freed may cause undefined behavior.
  *  \param num_signals  The number of signals to record.
  *  \param signals      Array of signals to record.
- *  \param graph        A previously allocated graph structure to use. If 0, one will be allocated
- *                      for use with this dataset.
  *  \return             A new recorder device */
 mpr_data_recorder mpr_data_recorder_new(mpr_dataset dataset,
-                                        unsigned int num_signals, mpr_sig * signals,
-                                        mpr_graph graph);
+                                        unsigned int num_signals, mpr_sig * signals);
 
 /*! Free resources used by this data recorder.
  *  \param recorder     The recorder to free. */

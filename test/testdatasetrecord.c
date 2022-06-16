@@ -206,8 +206,8 @@ int main(int argc, char ** argv)
     while(!done && !mpr_dev_get_is_ready(dev)) mpr_dev_poll(dev, 50);
 
     eprintf("Device ready, creating dataset.\n");
-    data = mpr_dataset_new("test_dataset");
-    rec = mpr_data_recorder_new(data, NUM_SIGS, sigs, 0);
+    data = mpr_dataset_new("test_dataset", 0);
+    rec = mpr_data_recorder_new(data, NUM_SIGS, sigs);
     if (done) goto done;
 
     eprintf("Waiting for recorder device.\n");
