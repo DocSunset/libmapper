@@ -71,6 +71,7 @@ if (!(a)) { trace_net(__VA_ARGS__); return ret; }
 #define trace(...) {}
 #define trace_graph(...) {}
 #define trace_dev(...) {}
+#define trace_dataset(...) {};
 #define trace_net(...) {}
 #define die_unless(...) {}
 #endif /* DEBUG */
