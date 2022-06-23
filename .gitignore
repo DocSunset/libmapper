@@ -88,6 +88,7 @@ test/testunmap
 test/testvector
 test/testdatasetrecord
 test/testdatasetaddrecord
+test/testdatasetsiglist
 ### VisualStudio ###
 build
 ## Ignore Visual Studio temporary files, build results, and

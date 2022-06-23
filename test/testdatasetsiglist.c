@@ -76,24 +76,27 @@ int main(int argc, char ** argv)
     eprintf("Setting up dataset.\n");
     mpr_dataset data = mpr_dataset_new("testdatasetsiglist", mpr_obj_get_graph(dev));
 
-    eprintf("Populating dataset.\n");
+    eprintf("Setting up records.\n");
     mpr_data_record in[3];
     in[0] = mpr_data_record_new(sig[0], MPR_SIG_UPDATE, 0, 1, MPR_INT32, (const void*)upd0, time);
     in[1] = mpr_data_record_new(sig[1], MPR_SIG_UPDATE, 0, 3, MPR_INT32, (const void*)upd1, time);
     in[2] = mpr_data_record_new(sig[2], MPR_SIG_UPDATE, 0, 1, MPR_FLT,   (const void*)upd2, time);
 
+    eprintf("Populating dataset.\n");
     for (unsigned int i = 0; i < 3; ++i)
         mpr_dataset_add_record(data, in[i]);
 
+    eprintf("Getting signals.\n");
     int result = 1;
     mpr_list sigs = mpr_dataset_get_sigs(data);
+    eprintf("Checking list size.\n");
     if (mpr_list_get_size(sigs) != 3) {
         eprintf("Signal list size %d != 3.\n", mpr_list_get_size(sigs));
         goto done;
     }
     eprintf("Signal list size matches.\n");
-    for (; sigs; sigs = mpr_list_get_next(sig)) {
-        if(!( *sigs == in[0] || *sigs == in[1] || *sigs == in[2] )) {
+    for (; sigs; sigs = mpr_list_get_next(sigs)) {
+        if(!( *sigs == sig[0] || *sigs == sig[1] || *sigs == sig[2] )) {
             eprintf("Signal list result not found.\n");
             goto done;
         }

@@ -73,16 +73,6 @@ mpr_dataset mpr_dataset_new(const char * name, mpr_graph g)
     data->name = strdup(name);
     die_unless(data->name, "Failed to malloc new dataset `%s` name string\n", name);
 
-    data->records = malloc(sizeof(mpr_data_record_t) * DATASET_INITIAL_RECORDS);
-    data->num_records = 0;
-    data->num_records_allocated = DATASET_INITIAL_RECORDS;
-    die_unless(data->records, "Failed to malloc new dataset `%s` records array\n", data->name);
-
-    data->values = malloc(DATASET_INITIAL_VALUES);
-    data->values_write_position = data->values;
-    data->values_bytes_allocated = DATASET_INITIAL_VALUES;
-    die_unless(data->values, "Failed to malloc new dataset `%s` values array\n", data->name);
-
     return data;
 }
 #undef DATASET_INITIAL_VALUES
@@ -98,96 +88,71 @@ void mpr_dataset_free(mpr_dataset data)
     free(data);
 }
 
-/* increase the allocated memory for data records in a dataset */
-static void _dataset_realloc_records(mpr_dataset data)
+void _deep_copy_sig(mpr_sig from, mpr_sig to, mpr_dataset data)
 {
-    trace_dataset(data, "Reallocating from %lu to %lu records.\n", data->num_records_allocated, 2 * data->num_records_allocated);
-    /* we should probably consider using someone else's better implementation of a dynamic array... */
-    data->records = reallocarray(data->records, 2 * data->num_records_allocated, sizeof(mpr_data_record_t));
-    die_unless(data->records, "Failed to reallocate dataset `%s` records array\n", data->name);
-    data->num_records_allocated = 2 * data->num_records_allocated;
-    trace_dataset(data, "Reallocation successful.\n");
-}
-
-static inline size_t _dataset_value_bytes_used(mpr_dataset data)
-{
-    return data->values_write_position - data->values;
-}
-
-static inline size_t _dataset_value_bytes_available(mpr_dataset data)
-{
-    return data->values_bytes_allocated - _dataset_value_bytes_used(data);
-}
-
-/* increase the allocated memory for data values in a dataset */
-static void _dataset_realloc_values(mpr_dataset data, size_t minimum_additional_bytes)
-{
-    size_t new_values_array_size = 2 * data->values_bytes_allocated;
-    size_t write_pointer_offset = _dataset_value_bytes_used(data);
-    while (minimum_additional_bytes > new_values_array_size - data->values_bytes_allocated)
-        new_values_array_size = 2 * new_values_array_size;
-    trace_dataset(data, "%lu bytes requested. %lu bytes available. Reallocating from %lu to %lu value bytes.\n",
-                  minimum_additional_bytes, _dataset_value_bytes_available(data),
-                  data->values_bytes_allocated, new_values_array_size);
-    data->values = realloc(data->values, new_values_array_size);
-    die_unless(data->values, "Failed to reallocate dataset `%s` values array\n", data->name);
-    data->values_write_position = data->values + write_pointer_offset;
-    data->values_bytes_allocated = new_values_array_size;
-    trace_dataset(data, "Reallocation successful.\n");
+    *to = *from; /* copy the easy stuff */
+    to->obj.graph = data->obj.graph;
+    to->obj.data = 0;
+    to->obj.props.synced = 0; /* TODO: save properties too? */
+    to->obj.props.staged = 0;
+    to->path = strdup(from->path);
+    to->name = to->path + 1;
+    to->unit = from->unit ? strdup(from->unit) : 0;
+    if (from->min) {
+        size_t bytes = mpr_type_get_size(from->type) * from->len;
+        to->min = malloc(bytes);
+        TRACE_RETURN_UNLESS(to->min, ;, "Failed to malloc memory for record sig copy min\n");
+        memcpy(to->min, from->min, bytes);
+    }
+    if (from->max) {
+        size_t bytes = mpr_type_get_size(from->type) * from->len;
+        to->max = malloc(bytes);
+        TRACE_RETURN_UNLESS(to->max, ;, "Failed to malloc memory for record sig copy max\n");
+        memcpy(to->max, from->max, bytes);
+    }
 }
 
 void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 {
+    /* copy record metadata */
+    mpr_data_record _record = (mpr_data_record)mpr_list_add_item((void**)&data->recs, sizeof(mpr_data_record_t));
+    *_record = *record;
 
-	/* copy values */
+    /* copy values */
     size_t value_bytes = mpr_type_get_size(record->type) * record->length;
-    if (_dataset_value_bytes_available(data) < value_bytes) _dataset_realloc_values(data, value_bytes);
-    memcpy(data->values_write_position, (void *)record->value, value_bytes);
+    void * value = malloc(value_bytes);
+    TRACE_RETURN_UNLESS(value, ;, "Failed to malloc memory for storing a record value\n");
+    memcpy(value, (void *)record->value, value_bytes);
+    _record->value = value;
 
-	/* copy record metadata */
-    if (data->num_records >= data->num_records_allocated) _dataset_realloc_records(data);
-    data->records[data->num_records] = *record;
-    data->records[data->num_records].value = data->values_write_position;
-
-	/* adjust write positions */
-	/* it's important to do this last, since the write positions are used above as the position of the current
-     * record/values being recorded */
-    data->values_write_position = data->values_write_position + value_bytes;
-    ++data->num_records;
+    /* if the signal in this record does not intersect with the signal list
+     * i.e. we have never seen this signal before
+     * then add it to the internal signal list */
+    mpr_list lst = mpr_list_filter(mpr_graph_get_list(data->obj.graph, MPR_SIG), MPR_PROP_ID, 0, 1, MPR_INT64, 
+                                   &_record->sig->obj.id, MPR_OP_EQ);
+    lst = mpr_list_get_diff(lst, data->sigs);
+    if (mpr_list_get_size(lst)) {
+        data->sigs = mpr_list_get_union(lst, data->sigs);
+        printf("Added signal, list size is %d\n", mpr_list_get_size(data->sigs));
+    }
 }
 
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
 {
-    mpr_data_record record = data->records + idx;
+    mpr_data_record record = (mpr_data_record)mpr_list_get_idx(mpr_list_from_data(data->recs), 
+            mpr_list_get_size(mpr_list_from_data(data->recs)) - idx - 1);
     return record;
 }
 
 unsigned int mpr_dataset_get_num_records(mpr_dataset data)
 {
-    return data->num_records;
-}
-
-static int _cmp_sigs_equality(const void *context_data, mpr_sig sig)
-{
-    mpr_id sig_id = *(mpr_id*)context_data;
-    mpr_id dev_id = *(mpr_id*)((char*)context_data + sizeof(mpr_id));
-    return ((sig_id == sig->obj.id) && (dev_id == sig->dev->obj.id));
+    return mpr_list_get_size(mpr_list_from_data(data->recs));
 }
 
 mpr_list mpr_dataset_get_sigs(mpr_dataset data)
 {
-    mpr_list sigs = 0;
-    for (unsigned int i = 0; i < mpr_dataset_get_num_records(data); ++i) {
-        mpr_data_record record = mpr_dataset_get_record(data, i);
-        mpr_sig record_sig = mpr_data_record_get_sig(record);
-        mpr_list seen = mpr_list_new_query((const void**)&sigs,
-                                          (void*)_cmp_sigs_equality, "hh", record_sig->dev->obj.id, record_sig->obj.id);
-        if (mpr_list_get_size(seen) == 0) /* we haven't seen record_sig */ {
-            mpr_sig * s = mpr_list_add_item((void**)&sigs, sizeof(mpr_sig));
-            *s = record_sig;
-        }
-    }
-    return sigs;
+    RETURN_ARG_UNLESS(mpr_list_get_size(data->sigs) > 0, 0);
+    return data->sigs;
 }
 
 mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs, mpr_sig * sigs)
@@ -294,7 +259,6 @@ static void sig_handler(mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int lengt
     mpr_data_record record = mpr_data_record_new(sig, evt, instance, length, type, value, time);
     mpr_dataset_add_record(rec->data, record);
     mpr_data_record_free(record);
-	printf("data recorder signal handler completed\n");
 }
 
 void mpr_data_recorder_start(mpr_data_recorder rec)

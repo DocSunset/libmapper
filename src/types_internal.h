@@ -533,7 +533,8 @@ typedef struct _mpr_id_map {
     int num_linked;     /*!< Number of linked devices. */               \
     int status;                                                         \
     uint8_t subscribed;                                                 \
-    int is_local;
+    int is_local;                                                       \
+    int is_dataset;
 
 /*! A record that keeps information about a device. */
 struct _mpr_dev {
@@ -611,8 +612,8 @@ typedef struct _mpr_data_record {
     mpr_id instance;
     int length;
     mpr_type type;
-    const void * value;
     mpr_time time;
+    const void * value;
 } mpr_data_record_t, *mpr_data_record;
 
 /* TODO: we will probably need to distinguish between datasets in general, and those that have been copied
@@ -620,12 +621,9 @@ typedef struct _mpr_data_record {
 typedef struct _mpr_dataset {
     mpr_obj_t obj;
     const char * name;
-    mpr_data_record records;
-    size_t num_records;
-    size_t num_records_allocated;
-    char * values;
-    char * values_write_position;
-    size_t values_bytes_allocated;
+    mpr_list recs;
+    mpr_list sigs;
+    unsigned int num_records;
     int is_local;
 } mpr_dataset_t, *mpr_dataset;
 

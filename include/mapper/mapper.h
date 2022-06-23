@@ -545,6 +545,7 @@ Datasets provide a way of recording signal data e.g. so that it can be used by d
 learn from signal data in order to operate, such as preset interpolation and machine
 learning algorithms. */
 
+/*??? should this require a dataset as first arg, the way that signals are always associated with a device? ???*/
 /*! Create a new data record. This is a local data structure only, unless it is added to a dataset.
  *  \param sig          The signal that the data concerns.
  *  \param evt          The type of signal event.

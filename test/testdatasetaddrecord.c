@@ -108,9 +108,11 @@ int main(int argc, char ** argv)
     for (int i = 0; i < 3; ++i) {
         mpr_sig sig_in  = mpr_data_record_get_sig(in[i]);
         mpr_sig sig_out = mpr_data_record_get_sig(out[i]);
-        if (sig_in != sig_out) {
-            eprintf("%dth signals differ\n", i);
-            eprintf("%x vs %x\n", sig_in, sig_out);
+        const char * name1 = mpr_obj_get_prop_as_str(sig_in, MPR_PROP_NAME, 0);
+        const char * name2 = mpr_obj_get_prop_as_str(sig_out, MPR_PROP_NAME, 0);
+        if (0 != strcmp(name1, name2)) {
+            eprintf("%dth signal names differ\n", i);
+            eprintf("%s vs %s\n", name1, name2);
             result = result || 1;
         }
 

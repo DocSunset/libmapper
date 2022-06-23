@@ -233,13 +233,14 @@ int main(int argc, char ** argv)
     int i = 0;
     unsigned int updates_sent, updates_recorded;
     updates_recorded = updates_sent = 0;
-    while((!terminate || i < 100) && !done) {
+    while((!terminate || i < 10) && !done) {
+        printf(".");
         updates_sent += update_signals(i);
         mpr_data_recorder_poll(rec, 200);
         ++i;
     }
 
-    eprintf("Stopping recorder.\n");
+    eprintf(" Stopping recorder.\n");
     mpr_data_recorder_stop(rec);
     mpr_data_recorder_disarm(rec);
 
