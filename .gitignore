@@ -89,6 +89,7 @@ test/testvector
 test/testdatasetrecord
 test/testdatasetaddrecord
 test/testdatasetsiglist
+test/testarray
 ### VisualStudio ###
 build
 ## Ignore Visual Studio temporary files, build results, and
