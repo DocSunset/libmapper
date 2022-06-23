@@ -256,7 +256,12 @@ static void sig_handler(mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int lengt
     mpr_data_recorder rec = (void*)mpr_obj_get_prop_as_ptr((mpr_obj)sig, MPR_PROP_DATA, 0);
     RETURN_UNLESS(mpr_data_recorder_get_is_recording(rec));
 
-    mpr_data_record record = mpr_data_record_new(sig, evt, instance, length, type, value, time);
+    /* TODO: for now the time is set here, locally, to ensure that records are recorded chronologically in some sense.
+     * in the future it would probably be better to convert the remote timestamp to the local timebase
+     * and then insert it into the record list at the appropriate place */
+    mpr_time t;
+    mpr_time_set(&t, MPR_NOW);
+    mpr_data_record record = mpr_data_record_new(sig, evt, instance, length, type, value, t);
     mpr_dataset_add_record(rec->data, record);
     mpr_data_record_free(record);
 }
