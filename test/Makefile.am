@@ -40,6 +40,7 @@ if WINDOWS_DLL
         testdatasetaddrecord \
         testdatasetsiglist \
         testarray \
+        testdlist_basic_memory \
         test
 
     test_all_ordered = \
@@ -73,6 +74,7 @@ if WINDOWS_DLL
         testdatasetaddrecord \
         testdatasetsiglist \
         testarray \
+        testdlist_basic_memory \
         test
 
 else
@@ -112,6 +114,7 @@ else
         testdatasetaddrecord \
         testdatasetsiglist \
         testarray \
+        testdlist_basic_memory \
         test
 
     test_all_ordered = \
@@ -147,6 +150,7 @@ else
         testdatasetaddrecord \
         testdatasetsiglist \
         testarray \
+        testdlist_basic_memory \
         test
 
 endif
@@ -290,6 +294,10 @@ testdatasetsiglist_LDADD = $(TEST_LDADD)
 testarray_CFLAGS = $(TEST_CFLAGS)
 testarray_SOURCES = testarray.c
 testarray_LDADD = $(TEST_LDADD)
+
+testdlist_basic_memory_CFLAGS = $(TEST_CFLAGS)
+testdlist_basic_memory_SOURCES = testdlist_basic_memory.c
+testdlist_basic_memory_LDADD = $(TEST_LDADD)
 
 tests: all
 	for i in $(test_all_ordered); do echo Running $$i; ./$$i -qtf; done

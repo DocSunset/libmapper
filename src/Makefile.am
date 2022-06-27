@@ -1,6 +1,7 @@
 
 noinst_HEADERS = mapper_internal.h \
     array.h \
+    dlist.h \
     types_internal.h
 EXTRA_DIST = libmapper.def
 
@@ -26,6 +27,7 @@ libmapper_la_SOURCES = device.c \
     value.c \
     dataset.c \
     array.c \
+    dlist.c \
     map.c
 libmapper_la_LIBADD = $(liblo_LIBS)
 libmapper_la_LDFLAGS = $(lt_windows) -export-dynamic -version-info @SO_VERSION@
