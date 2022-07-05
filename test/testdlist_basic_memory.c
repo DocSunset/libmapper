@@ -161,7 +161,7 @@ int main(int argc, char ** argv)
 
     eprintf("Allocating a new list.\n");
     mpr_dlist list = 0;
-    mpr_dlist_new(&list, data, &dummy_destructor);
+    mpr_dlist_new(&list, data, 0, &dummy_destructor);
     if (list == 0) {
         eprintf("Failed to allocate list.\n");
         fail = 1;
@@ -193,6 +193,22 @@ int main(int argc, char ** argv)
     eprintf("Confirming original list contents were unaffected by the copy.\n");
     if (compare_data(data, list)) goto done;
 
+    eprintf("Making a ref.\n");
+    mpr_dlist ref = 0;
+    mpr_dlist_make_ref(&ref, list);
+
+    eprintf("Confirming the ref matches the original.\n");
+    if (compare_lists(ref, list)) goto done;
+
+    eprintf("Confirming taking a ref increased the original list's refcount.\n");
+    if (confirm_refcount(list, 3)) goto done;
+
+    eprintf("Confirming the ref's refcount.\n");
+    if (confirm_refcount(ref, 3)) goto done;
+
+    eprintf("Confirming original list contents were unaffected by the ref.\n");
+    if (compare_data(data, list)) goto done;
+
     eprintf("Moving the original.\n");
     void * original_pointer = list;
     mpr_dlist move = 0;
@@ -204,11 +220,14 @@ int main(int argc, char ** argv)
     eprintf("Confirming the moved list matches the original pointer.\n");
     if (check_pointers_equal(move, original_pointer)) goto done;
 
+    eprintf("Confirming the moved list matches the ref.\n");
+    if (compare_lists(move, ref)) goto done;
+
     eprintf("Confirming the moved list matches the copy.\n");
     if (compare_lists(move, copy)) goto done;
 
     eprintf("Confirming the moved list's refcount is the same as the original.\n");
-    if (confirm_refcount(move, 2)) goto done;
+    if (confirm_refcount(move, 3)) goto done;
 
     eprintf("Confirming moved list contents.\n");
     if (compare_data(data, move)) goto done;
@@ -227,13 +246,26 @@ int main(int argc, char ** argv)
 
     if (try_to_free(list, "list")) goto done;
 
-    eprintf("Confirming the copy can still access the data.\n");
-    float sum = mpr_dlist_data_as(dummy_t*,copy)->a + mpr_dlist_data_as(dummy_t*,copy)->b;
+    eprintf("Confirming the ref can still access the data.\n");
+    float sum = mpr_dlist_data_as(dummy_t*,ref)->a + mpr_dlist_data_as(dummy_t*,ref)->b;
     if (3.0f != sum) {
+        eprintf("%u + %f = %f\n"
+                , mpr_dlist_data_as(dummy_t*,ref)->a
+                , mpr_dlist_data_as(dummy_t*,ref)->b 
+                , sum);
+        fail = 1;
+        goto done;
+    }
+
+    if (try_to_free(ref, "ref")) goto done;
+
+    eprintf("Confirming the copy can still access the data.\n");
+    float sum1 = mpr_dlist_data_as(dummy_t*,copy)->a + mpr_dlist_data_as(dummy_t*,copy)->b;
+    if (3.0f != sum1) {
         eprintf("%u + %f = %f\n"
                 , mpr_dlist_data_as(dummy_t*,copy)->a
                 , mpr_dlist_data_as(dummy_t*,copy)->b 
-                , sum);
+                , sum1);
         fail = 1;
         goto done;
     }
