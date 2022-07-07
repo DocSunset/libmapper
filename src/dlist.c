@@ -41,9 +41,12 @@ static inline void _incref(_dlist ll)
     if (ll) ++ll->refcount;
 }
 
-static inline void _decref(_dlist ll)
+static int _maybe_really_free(_dlist);
+
+static inline void _decref(_dlist *ll)
 {
-    if (ll) --ll->refcount;
+    if (ll && *ll) --(*ll)->refcount;
+    if (ll && _maybe_really_free(*ll)) *ll = 0;
 }
 
 void mpr_dlist_new(mpr_dlist *dst, void * data, size_t size, mpr_dlist_data_destructor *destructor)
@@ -70,34 +73,39 @@ void mpr_dlist_new(mpr_dlist *dst, void * data, size_t size, mpr_dlist_data_dest
     *dst = (mpr_dlist*)ldst; _incref(ldst);
 }
 
-void _maybe_really_free(_dlist ll)
+static int _maybe_really_free(_dlist ll)
 {
+	if (ll == 0) return 0;
     _dlist next = ll->next;
     if (0 == ll->refcount) {
 
         /* yep, really free it. */
         if (ll->destructor) ll->destructor(ll->data.mem);
-        else _decref(ll->data.ref);
+        else {
+	        _dlist ref = ll->data.ref;
+	        _decref(&ref);
+        }
         free(ll);
 
         /* recursively free neighbours */
         if (next) {
-            _decref(next);
-            next->prev = 0;
-            _maybe_really_free(next);
+            _decref(&next);
+            if (next) next->prev = 0;
         }
 
         /* no need to update ll->prev, since if it existed we wouldn't free ll */
+
+        return 1;
     }
     /* else since there are still references to ll, don't actually free it. */
+    return 0;
 }
 
 void mpr_dlist_free(mpr_dlist *dlist)
 {
     if (dlist == 0 || *dlist == 0) return;
     _dlist ll = *((_dlist *)dlist);
-    *dlist = 0; _decref(ll);
-    _maybe_really_free(ll);
+    *dlist = 0; _decref(&ll);
 }
 
 void mpr_dlist_copy(mpr_dlist *dst, mpr_dlist src)
@@ -178,6 +186,48 @@ void mpr_dlist_insert_after(mpr_dlist *dst, mpr_dlist iter, void * data, size_t 
     _dlist next = lit ? lit->next : 0;
     _insert_cell(lit, ldst, next);
     mpr_dlist_move(dst, (mpr_dlist*)&ldst);
+}
+
+static inline void _remove_cell(_dlist prev, _dlist ll, _dlist next)
+{
+	if (prev) {
+		prev->next = next; _decref(&ll); _incref(next);
+	}
+	if (next) next->prev = prev;
+	if (ll) {
+		ll->prev = 0;
+		ll->next = 0; _decref(&next);
+	}
+}
+
+void mpr_dlist_pop(mpr_dlist *dst, mpr_dlist *iter)
+{
+	if (iter == 0) return;
+	mpr_dlist_free(dst);
+	if (*iter == 0) return; /* freeing dst is equivalent to popping a null list into it */
+	_dlist prev, ll, next;
+	prev = ll = next = 0;
+	mpr_dlist_make_ref((mpr_dlist*)&ll, *iter);
+	mpr_dlist_next(iter);
+	prev = ll->prev;
+	next = (_dlist)*iter;
+	_remove_cell(prev, ll, next);
+	mpr_dlist_move(dst, (mpr_dlist*)&ll);
+}
+
+void mpr_dlist_rpop(mpr_dlist *dst, mpr_dlist *iter)
+{
+	if (iter == 0) return;
+	mpr_dlist_free(dst);
+	if (*iter == 0) return; /* freeing dst is equivalent to popping a null list into it */
+	_dlist prev, ll, next;
+	prev = ll = next = 0;
+	mpr_dlist_make_ref((mpr_dlist*)&ll, *iter);
+	mpr_dlist_prev(iter);
+	next = ll->next;
+	prev = (_dlist)*iter;
+	_remove_cell(prev, ll, next);
+	mpr_dlist_move(dst, (mpr_dlist*)&ll);
 }
 
 void mpr_dlist_next(mpr_dlist *iter)

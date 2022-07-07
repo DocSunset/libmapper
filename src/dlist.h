@@ -75,6 +75,9 @@ void mpr_dlist_swap(mpr_dlist *a, mpr_dlist *b);
 void mpr_dlist_copy(mpr_dlist *dst, mpr_dlist src);
 
 /* Methods for editing structures made of `mpr_dlist` cells. */
+/* Note that these methods edit the underlying data structure, and this will be reflected by
+ * any references held by the user, but not by copies (which have their own independent structure.)
+ */
 
 /* Allocates a new cell before/after the cell pointed to by `iter`.
  * If `dst != 0`, this allocates a new cell in `*dst` and inserts it into the list.
@@ -87,7 +90,8 @@ void mpr_dlist_insert_after (mpr_dlist *dst, mpr_dlist iter, void * data, size_t
 
 /* Remove the cell `iter`, putting it into `dst`,
  * and advancing/reversing `iter` to the next/previous cell.
- * If `iter` is a null list, this is equivalent to `mpr_dlist_free(dst)`:
+ * This is a no-op if `iter == 0`.
+ * If `*iter` is a null list, this is equivalent to `mpr_dlist_free(dst)`:
  * conceptually, the null list popped from the null list and moved into `dst`.
  * If `dst == 0`, then the popped list is simply freed.
  * It follows that if `dst == 0` and `iter` is a null list, this is a no-op. */
@@ -115,6 +119,10 @@ void mpr_dlist_split_before(mpr_dlist *left, mpr_dlist *right);
 void mpr_dlist_split_after (mpr_dlist *left, mpr_dlist *right);
 
 /* Methods for traversing and inspecting `mpr_dlist` structures. */
+/* Note that while these methods do not conceptually modify the list structure, cells may be
+ * implicitly freed if their reference count drops to zero as a consequence of these methods.
+ * Notably, `mpr_dlist_next` can cause the front of the list to be freed if a reference is
+ * not retained to it. */
 
 /* Determine the length of the list `dlist`.
  * `dlist` may refer to any cell in the list; the size of the whole list will be returned. */

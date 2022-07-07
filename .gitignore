@@ -92,6 +92,7 @@ test/testdatasetsiglist
 test/testarray
 test/testdlist_basic_memory
 test/testdlist_refcounts
+test/testdlist_pop
 ### VisualStudio ###
 build
 ## Ignore Visual Studio temporary files, build results, and
