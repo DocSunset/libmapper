@@ -1,13 +1,15 @@
-#include "dlist.h"
-#include <stdlib.h>
-#include <stdio.h>
-
+#define DLIST_TYPES_INTERNAL
+#include <stddef.h>
 struct _mpr_dlist_t;
 
 typedef union {
     void *mem;
     struct _mpr_dlist_t * ref;
 } _data;
+
+/* Handler function type for freeing memory cared for by a `mpr_dlist`.
+ * This is called automatically if the reference count in a `mpr_dlist` cell drops to zero. */
+typedef void mpr_dlist_data_destructor(void * data);
 
 /* a reference counted list cell */
 typedef struct _mpr_dlist_t {
@@ -22,12 +24,13 @@ typedef struct _mpr_dlist_t {
     _data data;
 } mpr_dlist_t;
 
-typedef mpr_dlist_t* _dlist;
+typedef mpr_dlist_t* mpr_dlist;
 
-/* Throughout here, `mpr_dlist` variables are usually named `dst`, `src`, `iter`, or `dlist`.
- * When converted to `_dlist`, the variable is named `ldst`, `lsrc`, `lit`, or `ll`,
- * where the `l` prefix is thought to be for "local", as in, this variable is represented with a type
- * that is only known locally in this compilation unit. */
+#include "dlist.h"
+#undef DLIST_TYPES_INTERNAL
+
+#include <stdlib.h>
+#include <stdio.h>
 
 /* Manual reference counting is tricky. To try to keep things obvious, any time a pointer is assigned
  * that points to a list, there should be a refcount inc/decrement on the same line. Use _incref
@@ -36,14 +39,14 @@ typedef mpr_dlist_t* _dlist;
 /* Note that only `next` and `data.ref` references are counted; otherwise every pair of cells would
  * form a reference cycle and you could never free a list. */
 
-static inline void _incref(_dlist ll)
+static inline void _incref(mpr_dlist ll)
 {
     if (ll) ++ll->refcount;
 }
 
-static int _maybe_really_free(_dlist);
+static int _maybe_really_free(mpr_dlist);
 
-static inline void _decref(_dlist *ll)
+static inline void _decref(mpr_dlist *ll)
 {
     if (ll && *ll) --(*ll)->refcount;
     if (ll && _maybe_really_free(*ll)) *ll = 0;
@@ -59,7 +62,7 @@ void mpr_dlist_new(mpr_dlist *dst, void * data, size_t size, mpr_dlist_data_dest
     }
     /* we could optimize this by reusing *dst's memory instead of freeing and newly callocing */
     if (*dst != 0) mpr_dlist_free(dst);
-    _dlist ldst = calloc(1, sizeof(mpr_dlist_t));
+    mpr_dlist ldst = calloc(1, sizeof(mpr_dlist_t));
     if (ldst == 0) {
         if (size != 0) free(data);
         return;
@@ -70,19 +73,19 @@ void mpr_dlist_new(mpr_dlist *dst, void * data, size_t size, mpr_dlist_data_dest
     ldst->destructor = destructor;
     ldst->data.mem = data;
 
-    *dst = (mpr_dlist*)ldst; _incref(ldst);
+    *dst = ldst; _incref(ldst);
 }
 
-static int _maybe_really_free(_dlist ll)
+static int _maybe_really_free(mpr_dlist ll)
 {
 	if (ll == 0) return 0;
-    _dlist next = ll->next;
+    mpr_dlist next = ll->next;
     if (0 == ll->refcount) {
 
         /* yep, really free it. */
         if (ll->destructor) ll->destructor(ll->data.mem);
         else {
-	        _dlist ref = ll->data.ref;
+	        mpr_dlist ref = ll->data.ref;
 	        _decref(&ref);
         }
         free(ll);
@@ -104,8 +107,8 @@ static int _maybe_really_free(_dlist ll)
 void mpr_dlist_free(mpr_dlist *dlist)
 {
     if (dlist == 0 || *dlist == 0) return;
-    _dlist ll = *((_dlist *)dlist);
-    *dlist = 0; _decref(&ll);
+    _decref(dlist);
+    *dlist = 0;
 }
 
 void mpr_dlist_copy(mpr_dlist *dst, mpr_dlist src)
@@ -115,16 +118,15 @@ void mpr_dlist_copy(mpr_dlist *dst, mpr_dlist src)
     if (*dst != 0) mpr_dlist_free(dst);
     if (src == 0) return; /* conceptually, freeing dst is the same as making it a ref to a null list */
 
-    _dlist lsrc = (_dlist)src;
-    _dlist ldst = calloc(1, sizeof(mpr_dlist_t));
+    mpr_dlist ldst = calloc(1, sizeof(mpr_dlist_t));
     if (ldst == 0) return;
 
-    ldst->prev = lsrc->prev;
-    ldst->next = lsrc->next; _incref(lsrc->next);
+    ldst->prev = src->prev;
+    ldst->next = src->next; _incref(src->next);
     ldst->destructor = 0; /* copies refer to their parent's data and don't have a destructor */
-    ldst->data.ref = lsrc; _incref(lsrc);
+    ldst->data.ref = src; _incref(src);
 
-    *dst = (mpr_dlist*)ldst; _incref(ldst);
+    *dst = ldst; _incref(ldst);
 }
 
 void mpr_dlist_make_ref(mpr_dlist *dst, mpr_dlist src)
@@ -132,7 +134,7 @@ void mpr_dlist_make_ref(mpr_dlist *dst, mpr_dlist src)
     if (dst == 0) return;
     if (*dst != 0) mpr_dlist_free(dst);
     if (src == 0) return;
-    *dst = src; _incref((_dlist)src);
+    *dst = src; _incref(src);
 }
 
 void mpr_dlist_move(mpr_dlist *dst, mpr_dlist *src)
@@ -146,12 +148,11 @@ void mpr_dlist_move(mpr_dlist *dst, mpr_dlist *src)
 
 const void * mpr_dlist_data(mpr_dlist dlist)
 {
-    _dlist ll = (_dlist)dlist;
-    if (ll->destructor) return ll->data.mem;
-    else return ((_dlist)ll->data.ref)->data.mem;
+    if (dlist->destructor) return dlist->data.mem;
+    else return dlist->data.ref->data.mem;
 }
 
-static inline void _insert_cell(_dlist prev, _dlist ll, _dlist next)
+static inline void _insert_cell(mpr_dlist prev, mpr_dlist ll, mpr_dlist next)
 {
     /* link backward */
     if (next) next->prev = ll;
@@ -169,26 +170,24 @@ static inline void _insert_cell(_dlist prev, _dlist ll, _dlist next)
 void mpr_dlist_insert_before(mpr_dlist *dst, mpr_dlist iter, void * data, size_t size
                             , mpr_dlist_data_destructor *destructor)
 {
-    _dlist lit = (_dlist)iter;
-    if (dst == 0 && (lit == 0 || lit->prev == 0)) return;
-    _dlist ldst = 0; mpr_dlist_new((mpr_dlist*)&ldst, data, size, destructor);
-    _dlist prev = lit ? lit->prev : 0;
-    _insert_cell(prev, ldst, lit);
-    mpr_dlist_move(dst, (mpr_dlist*)&ldst);
+    if (dst == 0 && (iter == 0 || iter->prev == 0)) return;
+    mpr_dlist ldst = 0; mpr_dlist_new(&ldst, data, size, destructor);
+    mpr_dlist prev = iter ? iter->prev : 0;
+    _insert_cell(prev, ldst, iter);
+    mpr_dlist_move(dst, &ldst);
 }
 
 void mpr_dlist_insert_after(mpr_dlist *dst, mpr_dlist iter, void * data, size_t size
                            , mpr_dlist_data_destructor *destructor)
 {
     if (dst == 0 && iter == 0) return;
-    _dlist lit = (_dlist)iter;
-    _dlist ldst = 0; mpr_dlist_new((mpr_dlist*)&ldst, data, size, destructor);
-    _dlist next = lit ? lit->next : 0;
-    _insert_cell(lit, ldst, next);
-    mpr_dlist_move(dst, (mpr_dlist*)&ldst);
+    mpr_dlist ldst = 0; mpr_dlist_new((mpr_dlist*)&ldst, data, size, destructor);
+    mpr_dlist next = iter ? iter->next : 0;
+    _insert_cell(iter, ldst, next);
+    mpr_dlist_move(dst, &ldst);
 }
 
-static inline void _remove_cell(_dlist prev, _dlist ll, _dlist next)
+static inline void _remove_cell(mpr_dlist prev, mpr_dlist ll, mpr_dlist next)
 {
 	if (prev) {
 		prev->next = next; _decref(&ll); _incref(next);
@@ -205,14 +204,14 @@ void mpr_dlist_pop(mpr_dlist *dst, mpr_dlist *iter)
 	if (iter == 0) return;
 	mpr_dlist_free(dst);
 	if (*iter == 0) return; /* freeing dst is equivalent to popping a null list into it */
-	_dlist prev, ll, next;
+	mpr_dlist prev, ll, next;
 	prev = ll = next = 0;
-	mpr_dlist_make_ref((mpr_dlist*)&ll, *iter);
+	mpr_dlist_make_ref(&ll, *iter);
 	mpr_dlist_next(iter);
 	prev = ll->prev;
-	next = (_dlist)*iter;
+	next = *iter;
 	_remove_cell(prev, ll, next);
-	mpr_dlist_move(dst, (mpr_dlist*)&ll);
+	mpr_dlist_move(dst, &ll);
 }
 
 void mpr_dlist_rpop(mpr_dlist *dst, mpr_dlist *iter)
@@ -220,12 +219,12 @@ void mpr_dlist_rpop(mpr_dlist *dst, mpr_dlist *iter)
 	if (iter == 0) return;
 	mpr_dlist_free(dst);
 	if (*iter == 0) return; /* freeing dst is equivalent to popping a null list into it */
-	_dlist prev, ll, next;
+	mpr_dlist prev, ll, next;
 	prev = ll = next = 0;
 	mpr_dlist_make_ref((mpr_dlist*)&ll, *iter);
 	mpr_dlist_prev(iter);
 	next = ll->next;
-	prev = (_dlist)*iter;
+	prev = *iter;
 	_remove_cell(prev, ll, next);
 	mpr_dlist_move(dst, (mpr_dlist*)&ll);
 }
@@ -233,19 +232,19 @@ void mpr_dlist_rpop(mpr_dlist *dst, mpr_dlist *iter)
 void mpr_dlist_next(mpr_dlist *iter)
 {
     if (iter == 0 || *iter == 0) return;
-    _dlist lit = *(_dlist*)iter;
-    if (lit->next == 0) return mpr_dlist_free(iter);
-    _dlist ldst = 0; mpr_dlist_make_ref((mpr_dlist*)&ldst, (mpr_dlist)lit->next);
-    mpr_dlist_move(iter, (mpr_dlist*)&ldst);
+    mpr_dlist next = (*iter)->next;
+    if (next == 0) return mpr_dlist_free(iter);
+    mpr_dlist ldst = 0; mpr_dlist_make_ref(&ldst, next);
+    mpr_dlist_move(iter, &ldst);
 }
 
 void mpr_dlist_prev(mpr_dlist *iter)
 {
     if (iter == 0 || *iter == 0) return;
-    _dlist lit = *(_dlist*)iter;
-    if (lit->prev == 0) return mpr_dlist_free(iter);
-    _dlist ldst = 0; mpr_dlist_make_ref((mpr_dlist*)&ldst, (mpr_dlist)lit->prev);
-    mpr_dlist_move(iter, (mpr_dlist*)&ldst);
+    mpr_dlist prev = (*iter)->prev;
+    if (prev == 0) return mpr_dlist_free(iter);
+    mpr_dlist ldst = 0; mpr_dlist_make_ref(&ldst, prev);
+    mpr_dlist_move(iter, &ldst);
 }
 
 size_t mpr_dlist_get_length(mpr_dlist dlist)
@@ -255,51 +254,47 @@ size_t mpr_dlist_get_length(mpr_dlist dlist)
 
 size_t mpr_dlist_get_front(mpr_dlist *dst, mpr_dlist iter)
 {
-    _dlist lit = (_dlist)iter;
-    if (lit == 0) return 0;
-    if (lit->prev == 0) {
+    if (iter == 0) return 0;
+    if (iter->prev == 0) {
         mpr_dlist_make_ref(dst, iter);
         return 1;
     }
     size_t count = 1;
-    while (lit->prev) {
+    while (iter->prev) {
         ++count;
-        lit = lit->prev;
+        iter = iter->prev;
     }
-    mpr_dlist_make_ref(dst, (mpr_dlist*)&lit);
+    mpr_dlist_make_ref(dst, iter);
     return count;
 }
 
 size_t mpr_dlist_get_back(mpr_dlist *dst, mpr_dlist iter)
 {
-    _dlist lit = (_dlist)iter;
-    if (lit == 0) return 0;
-    if (lit->next == 0) {
+    if (iter == 0) return 0;
+    if (iter->next == 0) {
         mpr_dlist_make_ref(dst, iter);
         return 1;
     }
     size_t count = 1;
-    while (lit->next) {
+    while (iter->next) {
         ++count;
-        lit = lit->next;
+        iter = iter->next;
     }
-    mpr_dlist_make_ref(dst, (mpr_dlist*)&lit);
+    mpr_dlist_make_ref(dst, iter);
     return count;
 }
 
 size_t mpr_dlist_get_refcount(mpr_dlist dlist)
 {
-    return ((_dlist)dlist)->refcount;
+    return dlist->refcount;
 }
 
-int mpr_dlist_equals(mpr_dlist ap, mpr_dlist bp)
+int mpr_dlist_equals(mpr_dlist a, mpr_dlist b)
 {
-    _dlist la = (_dlist)ap;
-    _dlist lb = (_dlist)bp;
-    return  la == lb   
-          || ( ( la->next == lb->next )
-            && ( la->prev == lb->prev )
-            && ( la->destructor ? la->data.mem == lb->data.ref->data.mem
-                                : la->data.ref->data.mem == lb->data.mem )
+    return  a == b   
+          || ( ( a->next == b->next )
+            && ( a->prev == b->prev )
+            && ( a->destructor ? a->data.mem == b->data.ref->data.mem
+                                : a->data.ref->data.mem == b->data.mem )
              );
 }

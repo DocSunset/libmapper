@@ -3,7 +3,26 @@
 
 #include <stddef.h>
 
+#ifndef DLIST_TYPES_INTERNAL
 typedef void * mpr_dlist;
+
+/* Handler function type for freeing memory cared for by a `mpr_dlist`.
+ * This is called automatically if the reference count in a `mpr_dlist` cell drops to zero. */
+typedef void mpr_dlist_data_destructor(void * data);
+#endif
+
+/* The `mpr_dquery` API provides a lazily evaluated query API over `mpr_dlist`s. */
+
+/* Query callback function. Return non-zero to indicate a query match. */
+typedef int mpr_dquery_callback(size_t num_items, void **items);
+
+/* Lazily evaluate a new list by filtering an existing one.
+ * When the query is constructed, `src` will be iterated over, passing its data to `cb`, until an
+ * initial match is located. Subsequent calls to `mpr_dlist_next` or `mpr_dlist_pop` passing `query`
+ * will repeat * this process until the end of `src` has been reached. If a copy or reference to the
+ * front of the query list is maintained, the results of the query will be cached as a list
+ * accessible from the front. */
+void mpr_dlist_filter(mpr_dlist *query, mpr_dlist src, mpr_dquery_callback *cb);
 
 /* The `mpr_dlist` API provides a generic list cell */
 
@@ -30,9 +49,7 @@ typedef void * mpr_dlist;
 
 /* Memory handling */
 
-/* Handler function type for freeing memory cared for by a `mpr_dlist`.
- * This is called automatically if the reference count in a `mpr_dlist` cell drops to zero. */
-typedef void mpr_dlist_data_destructor(void * data);
+/* Handler function for queries
 
 /* Allocate a new mpr_dlist cell pointing to `data` and direct `dst` toward it.
  * 
@@ -105,8 +122,9 @@ void mpr_dlist_rpop(mpr_dlist *dst, mpr_dlist *iter);
  * If this is not the case, the behavior is defined as equivalent to splitting before/after
  * `iter` and joining left split with `splice_front` and the right split with `splice_back`;
  * This behavior should not be exploited and may change without notice. */
-void mpr_dlist_splice_before(mpr_dlist iter, mpr_dlist splice_front, mpr_dlist splice_back);
+/*void mpr_dlist_splice_before(mpr_dlist iter, mpr_dlist splice_front, mpr_dlist splice_back);
 void mpr_dlist_splice_after (mpr_dlist iter, mpr_dlist splice_front, mpr_dlist splice_back);
+*/
 
 /* Split a list in two before/after the cell pointed to by `*right`.
  * After the split, `*left` is made to point to the back of the left side of the split,
@@ -115,8 +133,10 @@ void mpr_dlist_splice_after (mpr_dlist iter, mpr_dlist splice_front, mpr_dlist s
  * If `left` is a null pointer, no reference to the left list is returned.
  * If `right` is a null list, this is equivalent to `mpr_dlist_free(left)`; conceptually, the null
  * list is split into two null lists, and left is made to refer to one. */
+/*
 void mpr_dlist_split_before(mpr_dlist *left, mpr_dlist *right);
 void mpr_dlist_split_after (mpr_dlist *left, mpr_dlist *right);
+*/
 
 /* Methods for traversing and inspecting `mpr_dlist` structures. */
 /* Note that while these methods do not conceptually modify the list structure, cells may be
