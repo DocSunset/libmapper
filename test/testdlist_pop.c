@@ -1,4 +1,4 @@
-#include "dlist.h"
+#include <mapper/dlist.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -184,13 +184,9 @@ int main(int argc, char ** argv)
         eprintf("Populating list.\n");
         size_t initial_size = 5;
         mpr_dlist front = 0;
-        mpr_dlist_new(&front, 0, sizeof(dummy_t), &dummy_destructor);
-        mpr_dlist_data_as(dummy_t*, front)->a = 0;
-        mpr_dlist_data_as(dummy_t*, front)->b = 0;
         mpr_dlist back = 0;
-        mpr_dlist_make_ref(&back, front);
-        for (size_t i = 1; i < initial_size; ++i) {
-             mpr_dlist_insert_after(&back, back, 0, sizeof(dummy_t), &dummy_destructor);
+        for (size_t i = 0; i < initial_size; ++i) {
+             mpr_dlist_append(&front, &back, 0, sizeof(dummy_t), &dummy_destructor);
              mpr_dlist_data_as(dummy_t*, back)->a = i;
              mpr_dlist_data_as(dummy_t*, back)->b = i;
         }

@@ -1,4 +1,5 @@
-#include "mapper_internal.h"
+#include <mapper/mapper.h>
+#include "type.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>

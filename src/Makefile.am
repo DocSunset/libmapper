@@ -1,7 +1,9 @@
 
 noinst_HEADERS = mapper_internal.h \
     array.h \
-    dlist.h \
+    dataset.h \
+    debug_macro.h \
+    type.h \
     types_internal.h
 EXTRA_DIST = libmapper.def
 

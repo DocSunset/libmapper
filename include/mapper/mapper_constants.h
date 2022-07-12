@@ -5,6 +5,12 @@
 extern "C" {
 #endif
 
+#if defined(WIN32) || defined(_MSC_VER)
+#define MPR_INLINE __inline
+#else
+#define MPR_INLINE __inline
+#endif
+
 /*! This file defines structs used to return information from the network. */
 
 #include <lo/lo.h>

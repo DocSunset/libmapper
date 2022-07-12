@@ -11,6 +11,11 @@ typedef void * mpr_dlist;
 typedef void mpr_dlist_data_destructor(void * data);
 #endif
 
+/* helper destructor in case a `mpr_dlist` should not manage its memory resource. */
+/* TODO: eventually all memory resources could be managed by `mpr_dlist`
+ * so that this would not be useful. */
+void mpr_dlist_no_destructor(void * data);
+
 /* The `mpr_dquery` API provides a lazily evaluated query API over `mpr_dlist`s. */
 
 /* Query callback function. Return non-zero to indicate a query match. */
@@ -47,9 +52,12 @@ void mpr_dlist_filter(mpr_dlist *query, mpr_dlist src, mpr_dquery_callback *cb);
  * Note however that many methods require a pointer to a list; this pointer must not be null,
  * although the dereferenced value may be. */
 
+/* TODO: should the list functionality be distinct from the reference counted smart pointer
+ * functionality? It probably should, shouldn't it... */
+
 /* Memory handling */
 
-/* Handler function for queries
+/* Handler function for queries */
 
 /* Allocate a new mpr_dlist cell pointing to `data` and direct `dst` toward it.
  * 
@@ -63,12 +71,19 @@ void mpr_dlist_filter(mpr_dlist *query, mpr_dlist src, mpr_dquery_callback *cb);
  * the destructor, passing `data` as an argument. If a size if given, `mpr_dlist_new` will
  * allocate memory for the resource by calling `calloc`; otherwise, `data` is assumed to be
  * pre-allocated. */
-void mpr_dlist_new(mpr_dlist *dst, void * data, size_t size, mpr_dlist_data_destructor *destructor);
+void mpr_dlist_new(mpr_dlist *dst, void ** data, size_t size, mpr_dlist_data_destructor *destructor);
 
 /* Free the memory for a list cell and decrement reference counts of cells it refers to.
  * If a null pointer or pointer to null list is passed, this is a no-op:
  * conceptually, null lists have no outgoing references and are statically allocated on the heap. */
 void mpr_dlist_free(mpr_dlist *dlist);
+
+/* Make a reference to the cell `src`.
+ * This increments the reference count of the resources referred to or cared for by `src` and returns
+ * an additional pointer to `src`. If you make a reference, remember you have to free it.
+ * If `dst == 0`, this is a no-op. You cannot make a reference in a memory slot that doesn't exist.
+ * If `*dst != 0`, then the existing cell will be overwritten. */
+void mpr_dlist_make_ref(mpr_dlist *dst, mpr_dlist src);
 
 /* Move src into dst.
  * If `src == 0` this is a no-op.
@@ -93,17 +108,35 @@ void mpr_dlist_copy(mpr_dlist *dst, mpr_dlist src);
 
 /* Methods for editing structures made of `mpr_dlist` cells. */
 /* Note that these methods edit the underlying data structure, and this will be reflected by
- * any references held by the user, but not by copies (which have their own independent structure.)
+ * any references held by the user, but not by copies/queries
+ * (which have their own independent structure.)
  */
 
 /* Allocates a new cell before/after the cell pointed to by `iter`.
  * If `dst != 0`, this allocates a new cell in `*dst` and inserts it into the list.
  * If `dst == 0`, a new list is still inserted into the list `iter`, but no reference is returned.
- * Consequently, if `iter` is a null list or the front of a list in an insert_before operation
- * and `dst == 0`, then this is a no-op. In these cases, the newly created cell has no incoming
- * references, so conceptually it is immediately freed. */
-void mpr_dlist_insert_before(mpr_dlist *dst, mpr_dlist iter, void * data, size_t size, mpr_dlist_data_destructor *destructor);
-void mpr_dlist_insert_after (mpr_dlist *dst, mpr_dlist iter, void * data, size_t size, mpr_dlist_data_destructor *destructor);
+ * Consequently, if (`iter` is a null list OR `iter` is the front of a list in an `insert_before`
+ * operation AND `dst == 0`), then this is a no-op. In these cases, the newly created cell has no
+ * incoming references, so conceptually it is immediately freed. */
+void mpr_dlist_insert_before(mpr_dlist *dst, mpr_dlist iter, void **data, size_t size, mpr_dlist_data_destructor *destructor);
+void mpr_dlist_insert_after (mpr_dlist *dst, mpr_dlist iter, void **data, size_t size, mpr_dlist_data_destructor *destructor);
+
+/* Add a new cell at the back of a list.
+ * The list will be iterated from `*back` if it is not null, or otherwise from `*front`, to find
+ * the back of the list. A new cell will be inserted after the back, and if `back != 0`
+ * a reference to the back will be returned.
+ * `*front` is passed by reference so that if an empty list is passed in, a reference to the new
+ * cell can be returned. If `front == 0` this is a no-op. `front` has to be passed here since it
+ * is assumed the user must keep a reference to the front of the list (otherwise it might be
+ * garbage collected by the reference counting mechanism). `back` is included so that the scan
+ * to find the back of the list can be avoided. */
+void mpr_dlist_append(mpr_dlist *front, mpr_dlist *back, void **data, size_t size, mpr_dlist_data_destructor *destructor);
+
+/* Add a new cell at the front of a list.
+ * The list will be iterated over from `*front` to find the front of the list.
+ * A new cell will be inserted before the front, and `*front` will be updated to point to it.
+ * This is a no-op if `front == 0`. */
+void mpr_dlist_prepend(mpr_dlist *front, void **data, size_t size, mpr_dlist_data_destructor *destructor);
 
 /* Remove the cell `iter`, putting it into `dst`,
  * and advancing/reversing `iter` to the next/previous cell.
@@ -164,17 +197,15 @@ void mpr_dlist_prev(mpr_dlist *iter);
 /* Access the data cared for or referred to by `dlist`. */
 const void * mpr_dlist_data(mpr_dlist dlist);
 
-/* A helpful macro to access a cell's data and cast it as a particular type. */
+/* A helpful macro to access a cell's data and cast it as a particular type.
+ * Example: `T *data = mpr_dlist_data_as(T*, dlist);` */
 #define mpr_dlist_data_as(T, dlist) ((T)mpr_dlist_data(dlist))
 
-/* Test helpers. These functions are mainly provided for testing purposes. */
+/* A helpful macro to cast a cell's data as a pointer to a particular type and dereference it.
+ * Example: `mpr_sig sig = mpr_dlist_deref_as(mpr_sig, dlist);` */
+#define mpr_dlist_deref_as(T, dlist) (dlist ? *(T*)mpr_dlist_data(dlist) : 0)
 
-/* Make a reference to the cell `src`.
- * This increments the reference count of the resources referred to or cared for by `src` and returns
- * an additional pointer to `src`. This is mainly exposed for testing purposes.
- * If `dst == 0`, this is a no-op. You cannot make a reference in a memory slot that doesn't exist.
- * If `*dst != 0`, then the existing cell will be overwritten. */
-void mpr_dlist_make_ref(mpr_dlist *dst, mpr_dlist iter);
+/* Test helpers. These functions are mainly provided for testing purposes. */
 
 /* Check the reference count of a list cell. */
 size_t mpr_dlist_get_refcount(mpr_dlist dlist);

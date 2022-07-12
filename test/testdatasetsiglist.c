@@ -88,15 +88,18 @@ int main(int argc, char ** argv)
 
     eprintf("Getting signals.\n");
     int result = 1;
-    mpr_list sigs = mpr_dataset_get_sigs(data);
+    mpr_dlist sigs = mpr_dataset_get_sigs(data);
     eprintf("Checking list size.\n");
-    if (mpr_list_get_size(sigs) != 3) {
-        eprintf("Signal list size %d != 3.\n", mpr_list_get_size(sigs));
+    if (mpr_dlist_get_length(sigs) != 3) {
+        eprintf("Signal list size %d != 3.\n", mpr_dlist_get_length(sigs));
         goto done;
     }
     eprintf("Signal list size matches.\n");
-    for (; sigs; sigs = mpr_list_get_next(sigs)) {
-        if(!( *sigs == sig[0] || *sigs == sig[1] || *sigs == sig[2] )) {
+    for (; sigs; mpr_dlist_next(&sigs)) {
+        if(!( mpr_dlist_data_as(mpr_sig, sigs) == sig[0]
+           || mpr_dlist_data_as(mpr_sig, sigs) == sig[1]
+           || mpr_dlist_data_as(mpr_sig, sigs) == sig[2] ))
+        {
             eprintf("Signal list result not found.\n");
             goto done;
         }

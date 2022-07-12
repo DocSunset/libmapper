@@ -7,6 +7,7 @@ extern "C" {
 
 #include <mapper/mapper_constants.h>
 #include <mapper/mapper_types.h>
+#include <mapper/dlist.h>
 
 #ifdef WIN32
 #define strdup _strdup
@@ -611,8 +612,9 @@ unsigned int mpr_dataset_get_num_records(mpr_dataset data);
 
 /*! Get a list of signals recorded in a dataset.
  *  \param data         The dataset to inspect.
- *  \return             A mpr_list of signals found in the dataset. */
-mpr_list mpr_dataset_get_sigs(mpr_dataset data);
+ *  \return             A list of results. Use e.g. `mpr_dlist_next(&list)` to iterate. 
+ *                      Remember to free the list when you're done with it. */
+mpr_dlist mpr_dataset_get_sigs(mpr_dataset data);
 
 /*! Create a new data recorder. 
  *  \param dataset      The dataset to record into. The signals in this dataset will be connected

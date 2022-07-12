@@ -2,8 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "mapper_internal.h"
-#include "types_internal.h"
+#include "dataset.h"
+#include "type.h"
+#include "debug_macro.h"
 #include <mapper/mapper.h>
 
 static char * data_recorder_dev_name(const char * name)
@@ -73,6 +74,8 @@ mpr_dataset mpr_dataset_new(const char * name, mpr_graph g)
     data->name = strdup(name);
     die_unless(data->name, "Failed to malloc new dataset `%s` name string\n", name);
 
+    data->is_local = 1;
+
     return data;
 }
 #undef DATASET_INITIAL_VALUES
@@ -85,37 +88,19 @@ const char * mpr_dataset_get_name(mpr_dataset data)
 
 void mpr_dataset_free(mpr_dataset data)
 {
+    mpr_dlist_free(data->recs.back);
+    mpr_dlist_free(data->recs.front);
+    mpr_dlist_free(data->sigs);
+    free((void*)data->name);
     free(data);
-}
-
-void _deep_copy_sig(mpr_sig from, mpr_sig to, mpr_dataset data)
-{
-    *to = *from; /* copy the easy stuff */
-    to->obj.graph = data->obj.graph;
-    to->obj.data = 0;
-    to->obj.props.synced = 0; /* TODO: save properties too? */
-    to->obj.props.staged = 0;
-    to->path = strdup(from->path);
-    to->name = to->path + 1;
-    to->unit = from->unit ? strdup(from->unit) : 0;
-    if (from->min) {
-        size_t bytes = mpr_type_get_size(from->type) * from->len;
-        to->min = malloc(bytes);
-        TRACE_RETURN_UNLESS(to->min, ;, "Failed to malloc memory for record sig copy min\n");
-        memcpy(to->min, from->min, bytes);
-    }
-    if (from->max) {
-        size_t bytes = mpr_type_get_size(from->type) * from->len;
-        to->max = malloc(bytes);
-        TRACE_RETURN_UNLESS(to->max, ;, "Failed to malloc memory for record sig copy max\n");
-        memcpy(to->max, from->max, bytes);
-    }
 }
 
 void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 {
     /* copy record metadata */
-    mpr_data_record _record = (mpr_data_record)mpr_list_add_item((void**)&data->recs, sizeof(mpr_data_record_t));
+    mpr_data_record _record = 0;
+    mpr_dlist_append(&data->recs.front, &data->recs.back, (void**)&_record, sizeof(mpr_data_record_t), &free);
+    TRACE_RETURN_UNLESS(_record, ;, "Failed to calloc memory for storing a record.\n");
     *_record = *record;
 
     /* copy values */
@@ -124,35 +109,48 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
     TRACE_RETURN_UNLESS(value, ;, "Failed to malloc memory for storing a record value\n");
     memcpy(value, (void *)record->value, value_bytes);
     _record->value = value;
+    ++data->num_records;
 
+    /* TODO: fully convert to using mpr_dlist for everything so that this is easier... */
     /* if the signal in this record does not intersect with the signal list
      * i.e. we have never seen this signal before
      * then add it to the internal signal list */
-    mpr_list lst = mpr_list_filter(mpr_graph_get_list(data->obj.graph, MPR_SIG), MPR_PROP_ID, 0, 1, MPR_INT64, 
-                                   &_record->sig->obj.id, MPR_OP_EQ);
-    lst = mpr_list_get_diff(lst, data->sigs);
-    if (mpr_list_get_size(lst)) {
-        data->sigs = mpr_list_get_union(lst, data->sigs);
-        printf("Added signal, list size is %d\n", mpr_list_get_size(data->sigs));
+    mpr_dlist iter = 0;
+    mpr_sig rec_sig = _record->sig;
+    for (mpr_dlist_make_ref(&iter, data->sigs); iter; mpr_dlist_next(&iter)) {
+        mpr_sig iter_sig = *mpr_dlist_data_as(mpr_sig*, iter);
+        if (rec_sig->obj.id == iter_sig->obj.id) break;
     }
+    if (iter == 0) {
+        mpr_dlist_prepend(&data->sigs, (void**)&rec_sig, 0, &mpr_dlist_no_destructor);
+        printf("Added signal, list size is %lu\n", mpr_dlist_get_length(data->sigs));
+    }
+    mpr_dlist_free(&iter);
 }
 
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
 {
-    mpr_data_record record = (mpr_data_record)mpr_list_get_idx(mpr_list_from_data(data->recs), 
-            mpr_list_get_size(mpr_list_from_data(data->recs)) - idx - 1);
-    return record;
+    mpr_dlist iter = 0; mpr_dlist_make_ref(&iter, data->recs.front);
+    unsigned int i = 0;
+    while(i < idx && iter) {
+        ++i;
+        mpr_dlist_next(&iter);
+    }
+    mpr_data_record ret = mpr_dlist_data_as(mpr_data_record, iter);
+    mpr_dlist_free(&iter);
+    return ret;
 }
 
 unsigned int mpr_dataset_get_num_records(mpr_dataset data)
 {
-    return mpr_list_get_size(mpr_list_from_data(data->recs));
+    return data->num_records;
 }
 
-mpr_list mpr_dataset_get_sigs(mpr_dataset data)
+mpr_dlist mpr_dataset_get_sigs(mpr_dataset data)
 {
-    RETURN_ARG_UNLESS(mpr_list_get_size(data->sigs) > 0, 0);
-    return data->sigs;
+    RETURN_ARG_UNLESS(data->sigs, 0);
+    mpr_dlist ret = 0; mpr_dlist_make_ref(&ret, data->sigs);
+    return ret;
 }
 
 mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs, mpr_sig * sigs)

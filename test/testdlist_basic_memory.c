@@ -1,4 +1,4 @@
-#include "dlist.h"
+#include <mapper/dlist.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -161,7 +161,7 @@ int main(int argc, char ** argv)
 
     eprintf("Allocating a new list.\n");
     mpr_dlist list = 0;
-    mpr_dlist_new(&list, data, 0, &dummy_destructor);
+    mpr_dlist_new(&list, &data, 0, &dummy_destructor);
     if (list == 0) {
         eprintf("Failed to allocate list.\n");
         fail = 1;

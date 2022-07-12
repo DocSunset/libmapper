@@ -26,7 +26,7 @@ typedef struct _mpr_dlist_t {
 
 typedef mpr_dlist_t* mpr_dlist;
 
-#include "dlist.h"
+#include <mapper/dlist.h>
 #undef DLIST_TYPES_INTERNAL
 
 #include <stdlib.h>
@@ -52,15 +52,18 @@ static inline void _decref(mpr_dlist *ll)
     if (ll && _maybe_really_free(*ll)) *ll = 0;
 }
 
-void mpr_dlist_new(mpr_dlist *dst, void * data, size_t size, mpr_dlist_data_destructor *destructor)
+void mpr_dlist_new(mpr_dlist *dst, void ** data, size_t size, mpr_dlist_data_destructor *destructor)
 {
     if (dst == 0 || destructor == 0) return;
-    if (data == 0) {
+    void * _data;
+    if (data == 0 || *data == 0) {
         if (size == 0) return;
-        data = calloc(1, size);
-        if (data == 0) return;
-    }
-    /* we could optimize this by reusing *dst's memory instead of freeing and newly callocing */
+        _data = calloc(1, size);
+        if (_data == 0) return;
+        if (data != 0) *data = _data;
+    } else _data = *data;
+
+    /* could we optimize this by reusing *dst's memory instead of freeing and newly callocing */
     if (*dst != 0) mpr_dlist_free(dst);
     mpr_dlist ldst = calloc(1, sizeof(mpr_dlist_t));
     if (ldst == 0) {
@@ -71,10 +74,12 @@ void mpr_dlist_new(mpr_dlist *dst, void * data, size_t size, mpr_dlist_data_dest
     ldst->prev = 0;
     ldst->next = 0;
     ldst->destructor = destructor;
-    ldst->data.mem = data;
+    ldst->data.mem = _data;
 
     *dst = ldst; _incref(ldst);
 }
+
+void mpr_dlist_no_destructor(void* data) {return;};
 
 static int _maybe_really_free(mpr_dlist ll)
 {
@@ -132,7 +137,10 @@ void mpr_dlist_copy(mpr_dlist *dst, mpr_dlist src)
 void mpr_dlist_make_ref(mpr_dlist *dst, mpr_dlist src)
 {
     if (dst == 0) return;
-    if (*dst != 0) mpr_dlist_free(dst);
+    if (*dst != 0) {
+        if (*dst == src) return;
+        else mpr_dlist_free(dst);
+    }
     if (src == 0) return;
     *dst = src; _incref(src);
 }
@@ -145,6 +153,7 @@ void mpr_dlist_move(mpr_dlist *dst, mpr_dlist *src)
     *dst = *src;
     *src = 0;
 }
+
 
 const void * mpr_dlist_data(mpr_dlist dlist)
 {
@@ -167,7 +176,7 @@ static inline void _insert_cell(mpr_dlist prev, mpr_dlist ll, mpr_dlist next)
     if (ll) ll->next = next; 
 }
 
-void mpr_dlist_insert_before(mpr_dlist *dst, mpr_dlist iter, void * data, size_t size
+void mpr_dlist_insert_before(mpr_dlist *dst, mpr_dlist iter, void **data, size_t size
                             , mpr_dlist_data_destructor *destructor)
 {
     if (dst == 0 && (iter == 0 || iter->prev == 0)) return;
@@ -177,7 +186,7 @@ void mpr_dlist_insert_before(mpr_dlist *dst, mpr_dlist iter, void * data, size_t
     mpr_dlist_move(dst, &ldst);
 }
 
-void mpr_dlist_insert_after(mpr_dlist *dst, mpr_dlist iter, void * data, size_t size
+void mpr_dlist_insert_after(mpr_dlist *dst, mpr_dlist iter, void **data, size_t size
                            , mpr_dlist_data_destructor *destructor)
 {
     if (dst == 0 && iter == 0) return;
@@ -185,6 +194,31 @@ void mpr_dlist_insert_after(mpr_dlist *dst, mpr_dlist iter, void * data, size_t 
     mpr_dlist next = iter ? iter->next : 0;
     _insert_cell(iter, ldst, next);
     mpr_dlist_move(dst, &ldst);
+}
+
+void mpr_dlist_append(mpr_dlist *front, mpr_dlist *back, void **data, size_t size
+                     , mpr_dlist_data_destructor *destructor)
+{
+    if (front == 0) return;
+    if (*front == 0) {
+        mpr_dlist_new(front, data, size, destructor);
+        mpr_dlist_make_ref(back, *front);
+        return;
+    }
+    mpr_dlist lback = 0;
+    if (*back) mpr_dlist_get_back(&lback, *back);
+    else mpr_dlist_get_back(&lback, *front);
+    mpr_dlist_insert_after(&lback, lback, data, size, destructor);
+    mpr_dlist_move(back, &lback);
+}
+
+void mpr_dlist_prepend(mpr_dlist *front, void **data, size_t size
+                     , mpr_dlist_data_destructor *destructor)
+{
+    if (front == 0) return;
+    if (*front == 0) return mpr_dlist_new(front, data, size, destructor);
+    mpr_dlist_get_front(front, *front);
+    mpr_dlist_insert_before(front, *front, data, size, destructor);
 }
 
 static inline void _remove_cell(mpr_dlist prev, mpr_dlist ll, mpr_dlist next)

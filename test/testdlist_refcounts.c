@@ -1,4 +1,4 @@
-#include "dlist.h"
+#include <mapper/dlist.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -312,8 +312,6 @@ int main(int argc, char ** argv)
         if (confirm_freed(2)) goto done;
 
     }
-
-
 
   done:
     printf("...................Test %s\x1B[0m.\n",
