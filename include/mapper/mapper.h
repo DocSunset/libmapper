@@ -542,11 +542,84 @@ void mpr_map_remove_scope(mpr_map map, mpr_dev device);
 /*! @defgroup datasets Datasets
 
 @{
-Datasets provide a way of recording signal data e.g. so that it can be used by devices that
+Datasets provide a way of recording, publishing, transmitting, and subscribing to updates about
+collections of signal data e.g. so that it can be used by devices that
 learn from signal data in order to operate, such as preset interpolation and machine
 learning algorithms. */
 
-/*??? should this require a dataset as first arg, the way that signals are always associated with a device? ???*/
+/*! Callback handler for dataset signal events.
+ *  \param dsig          The dataset signal receiving the event.
+ *  \param data          The dataset affected by the event.
+ *  \param record        The record affected by the event, or null if the event affects the whole dataset 
+ *  \param event         The type of event; see `mpr_data_evt`. */
+typedef void mpr_data_sig_handler(mpr_data_sig dsig, mpr_dataset data, mpr_dlist record, int event);
+
+/*! Create a data signal.
+ *  A data signal is an endpoint for publishing and subscribing to datasets to be used by a device,
+ *  e.g. to implement many-to-many mappings using preset or machine learning algorithms.
+ *  Data signals serve two functions. A locally created dataset can be published by associating
+ *  it with a data signal, allowing other devices on the network to learn about this dataset.
+ *  With a data map, data signals can become subscribed to remotely published datasets, receiving
+ *  a copy of these datasets and notification of changes to them.
+ *  A dataset can only be associated with one data signal, but one data signal can be associated 
+ *  with an arbitrary number of datasets, such as when numerous datasets are mapped to the same 
+ *  incoming dataset signal (numerous subscriptions) or when several datasets should always be 
+ *  subscribed to together (numerous publications).
+ *  \param parent        The device with which the signal will be associated.
+ *  \param name          A descriptive name for the signal.
+ *  \param handler       Null or pointer to the handler function for updates subscribed datasets.
+ *  \param events        Events for which the handler callback should be invoked. This should
+ *                       be a bitwise union of `mpr_data_evt` values defined in `mapper_constants.h`
+ *  \return              A newly allocated data signal. */
+mpr_data_sig mpr_data_sig_new(mpr_dev parent, const char *name,
+                              mpr_data_sig_handler *handler, int events);
+
+/*! Free the resources held by a data signal */
+void mpr_data_sig_free(mpr_data_sig);
+
+/*! Get a list of datasets published by a signal.
+ *  \param mpr_dlist*       A pointer to a `mpr_dlist` in which to return the list of datasets.
+ *  \param mpr_data_sig    The signal to query. */
+void mpr_data_sig_get_pubs(mpr_dlist*, mpr_data_sig);
+
+/*! Get a list of datasets subscribed to by a signal.
+ *  \param mpr_dlist*       A pointer to a `mpr_dlist` in which to return the list of datasets.
+ *  \param mpr_data_sig    The signal to query. */
+void mpr_data_sig_get_subs(mpr_dlist*, mpr_data_sig);
+
+/*! Get the device associated with a signal. */
+mpr_dev mpr_data_sig_get_dev(mpr_data_sig);
+
+/*! Set or change the event handler callback associated with a signal. */
+void mpr_data_sig_set_cb(mpr_data_sig, mpr_data_sig_handler*);
+
+/*! Associate a dataset with a data signal.
+ *  A data map can be made from one data signal to another. This creates a subscription for the
+ *  destination signal to the source's published datasets. The destination signal will receive a 
+ *  copy of the datasets published by the source, as well as events whenever the datasets are 
+ *  modified. Whereas a regular signal map implies the imposition of a value on the destination 
+ *  signal, dataset maps represent an incoming subscription to a dataset. Furthermore, it is
+ *  currently not possible to create convergent data maps; the meaning of such a construct still
+ *  needs to be defined.
+ *  \param src          The source data signal. This signal must have at least one published
+ *                      dataset, or no map will be created.
+ *  \param dst          The destination data signal.
+ *  \return             A new `mpr_data_map` representing the established connection. It is
+ *                      recommended to call `mpr_obj_push` after making the signal to initiate
+ *                      the network handshake procedure. Otherwise, the data map may be pushed
+ *                      automatically when the underlying `mpr_graph` is polled. */
+mpr_data_map mpr_data_map_new(mpr_data_sig src, mpr_data_sig dst);
+
+/*! Remove a data map. */
+void mpr_data_map_release(mpr_data_map);
+
+/*! Check if a data map is fully initialized. */
+int mpr_data_map_get_is_ready(mpr_data_map);
+
+mpr_data_sig mpr_data_map_get_src(mpr_data_map);
+mpr_data_sig mpr_data_map_get_dst(mpr_data_map);
+
+/* TODO: record_new and record_free should not be exposed to users */
 /*! Create a new data record. This is a local data structure only, unless it is added to a dataset.
  *  \param sig          The signal that the data concerns.
  *  \param evt          The type of signal event.
@@ -575,22 +648,53 @@ const void * mpr_data_record_get_value   (const mpr_data_record record);
 mpr_time     mpr_data_record_get_time    (const mpr_data_record record);
 
 /*! Create a new dataset. 
+ *  \param parent       An optional parent data signal. If a parent is given, then the dataset will
+ *                      be published on the network so that it can be subscribed to by remote data
+ *                      signals.
  *  \param name         A short descriptive string to label the dataset.
- *  \param graph        A previously allocated graph structure to use. If 0, one will be allocated
- *                      for use with this dataset.
  *  \return             A newly created dataset data structure. */
-mpr_dataset mpr_dataset_new(const char * name, mpr_graph graph);
+mpr_dataset mpr_dataset_new(const char * name, mpr_data_sig parent);
 
 /*! Free resources used by this dataset.
  *  \param dataset      The dataset to free. */
 void mpr_dataset_free(mpr_dataset dataset);
 
+/* TODO: this should not be exposed to the user */
 /*! Add a data record to a dataset. This is called internally by data recorders, but can also be
  *  called manually by the user. The data record is copied into the dataset, so the user remains
  *  responsible for managing the lifetime of the record.
  *  \param data         The dataset to add the record to.
  *  \param record       The data record to add to the dataset. */
 void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record);
+
+/*! Publish a dataset by adding it to a newly created data signal.
+ *  \param data         The dataset to publish
+ *  \param dev          The device with which to publish the dataset.
+ *  \param name         An optional name to use for the new data signal. If null is passed, the
+ *                      name of the dataset will be used. In case a data signal already exists
+ *                      with the given name, a unique ordinal will be appended to the name of the
+ *                      new data signal.
+ *  \param handler      Null or pointer to the handler function for updates subscribed datasets.
+ *  \param events       Events for which the handler callback should be invoked. This should
+ *                      be a bitwise union of `mpr_data_evt` values defined in `mapper_constants.h`
+ *  \return             The newly created data signal. */
+mpr_data_sig mpr_dataset_publish(mpr_dataset data, mpr_dev dev, const char * name,
+                         mpr_data_sig_handler handler, int events);
+
+/*! Publish a dataset by adding it to an existing data signal.
+ *  A dataset can be published by adding it to a data signal. A dataset can only be associated
+ *  with one parent data signal, but one data signal can publish an arbitrary number of datasets.
+ *  When numerous datasets are published by one signal, a map originating from that signal
+ *  represents a subscription to all of the datasets that it publishes.
+ *  \param data         The dataset to publish
+ *  \param sig          The data signal with which to publish the dataset. */
+void mpr_dataset_publish_with_sig(mpr_dataset data, mpr_data_sig sig);
+
+/*! Withdraw a dataset from the network.
+ *  This causes the association with a data signal to be removed, so that the dataset is no longer
+ *  used or discoverable on the network. Subscribers will be notified to remove the dataset.
+ *  \param data         The dataset to withdraw. */
+void mpr_dataset_withdraw(mpr_dataset data);
 
 /*! Get the name of a dataset
  *  \param data         The dataset to inspect.
@@ -605,6 +709,8 @@ const char * mpr_dataset_get_name(mpr_dataset data);
  *                      be freed by the user. */
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx);
 
+void mpr_dataset_get_records(mpr_dataset data, mpr_dlist *records);
+
 /*! Get the number of data records stored in a dataset.
  *  \param data         The dataset to query.
  *  \return             The number of records stored in the dataset. */
@@ -612,18 +718,20 @@ unsigned int mpr_dataset_get_num_records(mpr_dataset data);
 
 /*! Get a list of signals recorded in a dataset.
  *  \param data         The dataset to inspect.
- *  \return             A list of results. Use e.g. `mpr_dlist_next(&list)` to iterate. 
- *                      Remember to free the list when you're done with it. */
-mpr_dlist mpr_dataset_get_sigs(mpr_dataset data);
+ *  \param sigs         A pointer to a `mpr_dlist` in which to return the results.
+ *                      Use e.g. `mpr_dlist_next(&list)` to iterate. 
+ *                      Remember to free the list when you're done with it, if you don't iterate
+ *                      all the way to the end of the list. */
+void mpr_dataset_get_sigs(mpr_dataset data, mpr_dlist *sigs);
 
 /*! Create a new data recorder. 
- *  \param dataset      The dataset to record into. The signals in this dataset will be connected
- *                      to by the recorder. The recorder keeps a reference to this dataset; use of
- *                      the recorder after the dataset has been freed may cause undefined behavior.
+ *  \param name         Optional name for the recorder device.
+ *                      If null is passed, a generic name will be used.
+ *  \param graph        Optional mpr_graph to use for the recorder device.
  *  \param num_signals  The number of signals to record.
  *  \param signals      Array of signals to record.
  *  \return             A new recorder device */
-mpr_data_recorder mpr_data_recorder_new(mpr_dataset dataset,
+mpr_data_recorder mpr_data_recorder_new(const char * name, mpr_graph graph,
                                         unsigned int num_signals, mpr_sig * signals);
 
 /*! Free resources used by this data recorder.
@@ -678,6 +786,13 @@ void mpr_data_recorder_stop(mpr_data_recorder recorder);
  *  \param recorder     The recorder to check.
  *  \return             Non-zero if the recorder is ready to record. Zero otherwise. */
 int mpr_data_recorder_get_is_recording(mpr_data_recorder recorder);
+
+/*! Get a list of datasets recorded by the recorder.
+ *  \param recorder     The recorder to query.
+ *  \param datasets     A pointer to the list in which to return the results.
+ *                      Remember to free this list when you're done with it, if you don't iterate
+ *                      all the way to the end of the list. */
+void mpr_data_recorder_get_recordings(mpr_data_recorder recorder, mpr_dlist *datasets);
 
 /** @} */ /* end of group Datasets */
 

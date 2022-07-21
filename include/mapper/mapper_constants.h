@@ -159,6 +159,18 @@ typedef enum {
     MPR_STEAL_NEWEST    /*!< Steal the newest instance. */
 } mpr_steal_type;
 
+/*! The set of possible dataset signal events, used to register and inform callbacks.
+ *  @ingroup dataset */
+typedef enum {
+    MPR_DATASET_INSERT = 0x01, /*!< A whole dataset has been inserted in the slot. */
+    MPR_DATASET_REMOVE = 0x02, /*!< A whole dataset has been removed from the slot. */
+    MPR_DATASET_REINIT = 0x04, /*!< A whole dataset in the slot has been re-initialized. */
+    MPR_DATAREC_INSERT = 0x10, /*!< A record has been inserted in a dataset. */
+    MPR_DATAREC_REMOVE = 0x20, /*!< A record has been removed from a dataset. */
+    MPR_DATAREC_UPDATE = 0x40, /*!< A record has been changed in a dataset. */
+    MPR_DATA_ALL       = 0xFF
+} mpr_data_evt;
+
 /*! The set of possible graph events, used to inform callbacks.
  *  @ingroup graph */
 typedef enum {

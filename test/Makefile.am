@@ -44,6 +44,7 @@ if WINDOWS_DLL
         testdlist_refcounts \
         testdlist_pop \
         testdlist_prepend \
+        testdatasetpubsub \
         test
 
     test_all_ordered = \
@@ -81,6 +82,7 @@ if WINDOWS_DLL
         testdlist_refcounts \
         testdlist_pop \
         testdlist_prepend \
+        testdatasetpubsub \
         test
 
 else
@@ -124,6 +126,7 @@ else
         testdlist_refcounts \
         testdlist_pop \
         testdlist_prepend \
+        testdatasetpubsub \
         test
 
     test_all_ordered = \
@@ -163,6 +166,7 @@ else
         testdlist_refcounts \
         testdlist_pop \
         testdlist_prepend \
+        testdatasetpubsub \
         test
 
 endif
@@ -322,6 +326,10 @@ testdlist_pop_LDADD = $(TEST_LDADD)
 testdlist_prepend_CFLAGS = $(TEST_CFLAGS)
 testdlist_prepend_SOURCES = testdlist_prepend.c
 testdlist_prepend_LDADD = $(TEST_LDADD)
+
+testdatasetpubsub_CFLAGS = $(TEST_CFLAGS)
+testdatasetpubsub_SOURCES = testdatasetpubsub.c
+testdatasetpubsub_LDADD = $(TEST_LDADD)
 
 tests: all
 	for i in $(test_all_ordered); do echo Running $$i; ./$$i -qtf; done

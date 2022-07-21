@@ -3,23 +3,9 @@
 #include <string.h>
 
 #include "dataset.h"
+#include <mapper/mapper.h>
 #include "type.h"
 #include "debug_macro.h"
-#include <mapper/mapper.h>
-
-static char * data_recorder_dev_name(const char * name)
-{
-    size_t len = strlen(name);
-    size_t dev_name_len = len + 8 + 1; /* 8 = length of "dataset_", 1 = length of null terminator */
-    char * dev_name = malloc(dev_name_len);
-    strncpy(dev_name, "dataset_", 9); /* copy the null terminator to silence warnings, even though we overwrite it */
-    strncpy(dev_name+8, name, len + 1);
-
-    /* transform slashes into underscores */
-    for (char * c = dev_name + 8; c - dev_name < dev_name_len; ++c) if (*c == '/') *c = '_';
-
-    return dev_name; /* remember to free this when you're done with it */
-}
 
 mpr_data_record mpr_data_record_new(mpr_sig sig, mpr_sig_evt evt, mpr_id instance,
                                     int length, mpr_type type, const void * value, mpr_time time)
@@ -48,46 +34,31 @@ mpr_type     mpr_data_record_get_type    (const mpr_data_record record) { return
 const void * mpr_data_record_get_value   (const mpr_data_record record) { return record->value; }
 mpr_time     mpr_data_record_get_time    (const mpr_data_record record) { return record->time; }
 
-#define DATASET_INITIAL_RECORDS 16
-#define DATASET_INITIAL_VALUES sizeof(float) * DATASET_INITIAL_RECORDS
-mpr_dataset mpr_dataset_new(const char * name, mpr_graph g)
+mpr_dataset mpr_dataset_new(const char * name, mpr_data_sig parent)
 {
     RETURN_ARG_UNLESS(name, 0);
-    if (!g) {
-        g = mpr_graph_new(0);
-        g->own = 0;
-    }
-
     /* TODO: the dataset should be allocated by the graph, and graphs should have a list of datasets:
      * data = (mpr_dataset)mpr_list_add_item((void**)&g->datasets, sizeof(mpr_dataset)); */
     mpr_dataset data = calloc(1, sizeof(mpr_dataset_t));
-
-    data->obj.graph = g;
-    /* TODO: determine ID; probably from network through name resolution, as with devices */
-    /* TODO?: allow user data to be associated with the dataset? Is this handled generically through the property API? */
-    /* TODO: set up data->obj.props _mpr_dict */
-    /* TODO?: set up version? Not sure what this is for, but it seems to usually be linked to a mpr_tbl property */
-    data->obj.type = MPR_DATASET;
-    data->is_local = 1;
 
     /* TODO: should probably add name conflict resolution in the same way devices do so */
     data->name = strdup(name);
     die_unless(data->name, "Failed to malloc new dataset `%s` name string\n", name);
 
-    data->is_local = 1;
+    data->synced = 0;
 
     return data;
 }
-#undef DATASET_INITIAL_VALUES
-#undef DATASET_INITIAL_RECORDS
 
 const char * mpr_dataset_get_name(mpr_dataset data)
 {
+    RETURN_ARG_UNLESS(data, 0);
     return data->name;
 }
 
 void mpr_dataset_free(mpr_dataset data)
 {
+    RETURN_UNLESS(data);
     mpr_dlist_free(data->recs.back);
     mpr_dlist_free(data->recs.front);
     mpr_dlist_free(data->sigs);
@@ -97,6 +68,7 @@ void mpr_dataset_free(mpr_dataset data)
 
 void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 {
+    RETURN_UNLESS(data);
     /* copy record metadata */
     mpr_data_record _record = 0;
     mpr_dlist_append(&data->recs.front, &data->recs.back, (void**)&_record, sizeof(mpr_data_record_t), &free);
@@ -109,7 +81,6 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
     TRACE_RETURN_UNLESS(value, ;, "Failed to malloc memory for storing a record value\n");
     memcpy(value, (void *)record->value, value_bytes);
     _record->value = value;
-    ++data->num_records;
 
     /* TODO: fully convert to using mpr_dlist for everything so that this is easier... */
     /* if the signal in this record does not intersect with the signal list
@@ -130,6 +101,7 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
 {
+    RETURN_ARG_UNLESS(data && data->recs.front, 0);
     mpr_dlist iter = 0; mpr_dlist_make_ref(&iter, data->recs.front);
     unsigned int i = 0;
     while(i < idx && iter) {
@@ -141,19 +113,25 @@ mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
     return ret;
 }
 
+void mpr_dataset_get_records(mpr_dataset data, mpr_dlist *records)
+{
+    RETURN_UNLESS(data);
+    mpr_dlist_make_ref(records, data->recs.front);
+}
+
 unsigned int mpr_dataset_get_num_records(mpr_dataset data)
 {
-    return data->num_records;
+    RETURN_ARG_UNLESS(data, 0);
+    return mpr_dlist_get_length(data->recs.front);
 }
 
-mpr_dlist mpr_dataset_get_sigs(mpr_dataset data)
+void mpr_dataset_get_sigs(mpr_dataset data, mpr_dlist *sigs)
 {
-    RETURN_ARG_UNLESS(data->sigs, 0);
-    mpr_dlist ret = 0; mpr_dlist_make_ref(&ret, data->sigs);
-    return ret;
+    RETURN_UNLESS(data);
+    mpr_dlist_make_ref(sigs, data->sigs);
 }
 
-mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs, mpr_sig * sigs)
+mpr_data_recorder mpr_data_recorder_new(const char * name, mpr_graph g, unsigned int num_sigs, mpr_sig * sigs)
 {
     RETURN_ARG_UNLESS(sigs, 0);
     RETURN_ARG_UNLESS(num_sigs > 0, 0);
@@ -165,23 +143,21 @@ mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs,
     /* TODO: (quietly?) ignore NULL signals */
     /* TODO: allow uninitialized devices into data recorders; just don't consider the recorder ready until all the devices are? */
 
+    /* set up device */
+    const char * dev_name = name ? name : "data_recorder";
+    mpr_dev dev = mpr_dev_new(dev_name, g);
+    RETURN_ARG_UNLESS(dev, 0);
+
     mpr_data_recorder rec = malloc(sizeof(mpr_data_recorder_t));
 
-    rec->data = data;
+    rec->dev = dev;
+    rec->data = mpr_dataset_new(dev_name, 0);
     rec->num_sigs = num_sigs;
     rec->mapped = 0;
     rec->armed = 0;
     rec->recording = 0;
     rec->remote_sigs = sigs;
     rec->sigs = calloc(num_sigs, sizeof(mpr_sig *));
-
-    /* set up device */
-    {
-        mpr_graph g = data->obj.graph;
-        char * dev_name = data_recorder_dev_name(data->name);
-        rec->dev = mpr_dev_new(dev_name, g);
-        free(dev_name);
-    }
 
     /* make a local destination for the signals to record */
     for (unsigned int i = 0; i < rec->num_sigs; ++i)
@@ -199,7 +175,7 @@ mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs,
         free(name);
     }
 
-    /* ideally we would like to set up maps immediately here while we know all the signals; then we wouldn't have to store
+    /* TODO: ideally we would like to set up maps immediately here while we know all the signals; then we wouldn't have to store
      * the list and number of remote signals */
 
     return rec;
@@ -207,6 +183,7 @@ mpr_data_recorder mpr_data_recorder_new(mpr_dataset data, unsigned int num_sigs,
 
 void mpr_data_recorder_free(mpr_data_recorder rec)
 {
+    RETURN_UNLESS(rec);
     mpr_dev_free(rec->dev);
     free(rec->sigs);
     free(rec);
@@ -214,6 +191,7 @@ void mpr_data_recorder_free(mpr_data_recorder rec)
 
 int mpr_data_recorder_get_is_ready(mpr_data_recorder rec)
 {
+    RETURN_ARG_UNLESS(rec, 0);
     return mpr_dev_get_is_ready(rec->dev);
     /* if we eventually are able to create the maps in recorder_new,
      * we should check here instead of in get_is_armed if the maps are ready as well as the device */
@@ -226,16 +204,19 @@ int mpr_data_recorder_poll(mpr_data_recorder rec, int block_ms)
 
 void mpr_data_recorder_disarm(mpr_data_recorder rec)
 {
+    RETURN_UNLESS(rec);
     rec->armed = 0;
 }
 
 static inline int _recorder_is_mapped(mpr_data_recorder rec)
 {
+    RETURN_ARG_UNLESS(rec, 0);
     return mpr_list_get_size(mpr_dev_get_maps(rec->dev, MPR_DIR_IN)) > 0;
 }
 
 static inline int _recorder_maps_are_ready(mpr_data_recorder rec)
 {
+    RETURN_ARG_UNLESS(rec, 0);
     if (rec->mapped) return 1;
     RETURN_ARG_UNLESS(_recorder_is_mapped(rec), 0);
     for (mpr_list map_list = mpr_dev_get_maps(rec->dev, MPR_DIR_IN); map_list; map_list = mpr_list_get_next(map_list))
@@ -245,6 +226,7 @@ static inline int _recorder_maps_are_ready(mpr_data_recorder rec)
 
 int mpr_data_recorder_get_is_armed(mpr_data_recorder rec)
 {
+    RETURN_ARG_UNLESS(rec, 0);
     return _recorder_maps_are_ready(rec) && rec->armed;
 }
 
@@ -264,23 +246,40 @@ static void sig_handler(mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int lengt
     mpr_data_record_free(record);
 }
 
+static inline void _maybe_add_recording(mpr_data_recorder rec)
+{
+    if (rec->recording) {
+        /* TODO: provide better generic names */
+        mpr_dataset data = mpr_dataset_new("recording", 0);
+        mpr_dlist_make_ref(&data->recs.front, rec->data->recs.front);
+        mpr_dlist_make_ref(&data->recs.back, rec->data->recs.back);
+        mpr_dlist_insert_before(&rec->recordings, rec->recordings, &data, 0, &mpr_dataset_free);
+    }
+}
+
 void mpr_data_recorder_start(mpr_data_recorder rec)
 {
+    RETURN_UNLESS(rec);
+    _maybe_add_recording(rec);
     rec->recording = mpr_dev_get_is_ready(rec->dev) && mpr_data_recorder_get_is_armed(rec) && _recorder_maps_are_ready(rec);
 }
 
 void mpr_data_recorder_stop(mpr_data_recorder rec)
 {
+    RETURN_UNLESS(rec);
+    _maybe_add_recording(rec);
     rec->recording = 0;
 }
 
 int mpr_data_recorder_get_is_recording(mpr_data_recorder rec)
 {
+    RETURN_ARG_UNLESS(rec, 0);
     return rec->recording;
 }
 
 void mpr_data_recorder_arm(mpr_data_recorder rec)
 {
+    RETURN_UNLESS(rec);
     RETURN_UNLESS(mpr_dev_get_is_ready(rec->dev));
     if (_recorder_is_mapped(rec) == 0) for (unsigned int i = 0; i < rec->num_sigs; ++i)
     {
@@ -293,4 +292,10 @@ void mpr_data_recorder_arm(mpr_data_recorder rec)
         mpr_sig_set_cb(local_sig, sig_handler, MPR_SIG_ALL);
     }
     rec->armed = 1;
+}
+
+void mpr_data_recorder_get_recordings(mpr_data_recorder rec, mpr_dlist *datasets)
+{
+    RETURN_UNLESS(rec);
+    mpr_dlist_make_ref(datasets, rec->recordings);
 }

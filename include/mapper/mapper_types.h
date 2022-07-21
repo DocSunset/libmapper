@@ -39,6 +39,12 @@ typedef int mpr_sig_group;
 #ifdef __cplusplus
 extern "C" {
 #endif
+/*! An internal structure defining a dataset signal, used to publish or subscribe to datasets. */
+typedef void *mpr_data_sig;
+
+/*! An internal structure defining a subscription to a published dataset. */
+typedef void *mpr_data_map;
+
 /*! An internal structure defining a dataset of recorded signal events. */
 typedef void *mpr_dataset;
 

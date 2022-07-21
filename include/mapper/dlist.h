@@ -12,8 +12,8 @@ typedef void mpr_dlist_data_destructor(void * data);
 #endif
 
 /* helper destructor in case a `mpr_dlist` should not manage its memory resource. */
-/* TODO: eventually all memory resources could be managed by `mpr_dlist`
- * so that this would not be useful. */
+/* TODO: eventually all memory resources could be managed by `mpr_dlist` or some kind of
+ * reference counting mechanism so that this would not be useful. */
 void mpr_dlist_no_destructor(void * data);
 
 /* The `mpr_dquery` API provides a lazily evaluated query API over `mpr_dlist`s. */

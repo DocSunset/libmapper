@@ -206,8 +206,7 @@ int main(int argc, char ** argv)
     while(!done && !mpr_dev_get_is_ready(dev)) mpr_dev_poll(dev, 50);
 
     eprintf("Device ready, creating dataset.\n");
-    data = mpr_dataset_new("test_dataset", 0);
-    rec = mpr_data_recorder_new(data, NUM_SIGS, sigs);
+    rec = mpr_data_recorder_new("test_recorder", 0, NUM_SIGS, sigs);
     if (done) goto done;
 
     eprintf("Waiting for recorder device.\n");
@@ -244,9 +243,15 @@ int main(int argc, char ** argv)
     mpr_data_recorder_stop(rec);
     mpr_data_recorder_disarm(rec);
 
+    eprintf("Getting dataset.\n");
+    mpr_dlist datalist = 0;
+    mpr_data_recorder_get_recordings(rec, &datalist);
+    data = mpr_dlist_data_as(mpr_dataset, datalist);
+
     eprintf("Checking number of records\n");
-    for (unsigned int i = 0; i < mpr_dataset_get_num_records(data); ++i) {
-        mpr_data_record record = mpr_dataset_get_record(data, i);
+    mpr_dlist records = 0;
+    for (mpr_dataset_get_records(data, &records); records; mpr_dlist_next(&records)) {
+        mpr_data_record record = mpr_dlist_data_as(mpr_data_record, records);
         if (mpr_data_record_get_evt(record) == MPR_SIG_UPDATE) ++updates_recorded;
     }
 
