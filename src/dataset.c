@@ -7,6 +7,8 @@
 #include "type.h"
 #include "debug_macro.h"
 
+/* Data records */
+
 mpr_data_record mpr_data_record_new(mpr_sig sig, mpr_sig_evt evt, mpr_id instance,
                                     int length, mpr_type type, const void * value, mpr_time time)
 {
@@ -49,6 +51,8 @@ mpr_dataset mpr_dataset_new(const char * name, mpr_data_sig parent)
 
     return data;
 }
+
+/* Datasets */
 
 const char * mpr_dataset_get_name(mpr_dataset data)
 {
@@ -130,6 +134,22 @@ void mpr_dataset_get_sigs(mpr_dataset data, mpr_dlist *sigs)
     RETURN_UNLESS(data);
     mpr_dlist_make_ref(sigs, data->sigs);
 }
+
+mpr_data_sig mpr_dataset_publish(mpr_dataset data, mpr_dev dev, const char * name,
+                         mpr_data_sig_handler handler, int events)
+{
+    return 0;
+}
+
+void mpr_dataset_publish_with_sig(mpr_dataset data, mpr_data_sig sig)
+{
+}
+
+void mpr_dataset_withdraw(mpr_dataset data)
+{
+}
+
+/* Data recorders */
 
 mpr_data_recorder mpr_data_recorder_new(const char * name, mpr_graph g, unsigned int num_sigs, mpr_sig * sigs)
 {
@@ -298,4 +318,59 @@ void mpr_data_recorder_get_recordings(mpr_data_recorder rec, mpr_dlist *datasets
 {
     RETURN_UNLESS(rec);
     mpr_dlist_make_ref(datasets, rec->recordings);
+}
+
+/* Dataset signals */
+
+mpr_data_sig mpr_data_sig_new(mpr_dev parent, const char *name,
+                              mpr_data_sig_handler *handler, int events)
+{
+    return 0;
+}
+
+void mpr_data_sig_free(mpr_data_sig)
+{
+}
+
+void mpr_data_sig_get_pubs(mpr_dlist*, mpr_data_sig)
+{
+}
+
+void mpr_data_sig_get_subs(mpr_dlist*, mpr_data_sig)
+{
+}
+
+mpr_dev mpr_data_sig_get_dev(mpr_data_sig)
+{
+    return 0;
+}
+
+void mpr_data_sig_set_cb(mpr_data_sig, mpr_data_sig_handler*)
+{
+}
+
+/* Dataset mappings */
+
+mpr_data_map mpr_data_map_new(mpr_data_sig src, mpr_data_sig dst)
+{
+    return 0;
+}
+
+void mpr_data_map_release(mpr_data_map)
+{
+}
+
+int mpr_data_map_get_is_ready(mpr_data_map)
+{
+    return 0;
+}
+
+mpr_data_sig mpr_data_map_get_src(mpr_data_map)
+{
+    return 0;
+}
+
+mpr_data_sig mpr_data_map_get_dst(mpr_data_map)
+{
+    return 0;
 }

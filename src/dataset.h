@@ -28,9 +28,8 @@ typedef struct _mpr_data_sig {
     mpr_obj_t obj;      /* always first (so that the sig can be safely cast as a mpr_obj) */
     const char * path;  /* OSC path of the sig, which must start with `/` */
     const char * name;  /* Name of the sig, i.e. path+1 */
-    char dir;           /* mapper direction, either incoming or outgoing */
-    mpr_dlist pubs; /* Datasets that this signal publishes */
-    mpr_dlist subs; /* Datasets this signal is subscribed to */
+    mpr_dlist pubs;     /* Datasets that this signal publishes */
+    mpr_dlist subs;     /* Datasets this signal is subscribed to */
     mpr_dev dev;        /* Pointer back to parent device */
 } mpr_data_sig_t, *mpr_data_sig;
 
