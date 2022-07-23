@@ -48,43 +48,6 @@ struct _mpr_allocated_t;
 struct _mpr_id_map;
 typedef int mpr_sig_group;
 
-/**** String tables ****/
-
-/* bit flags for tracking permissions for modifying properties */
-#define NON_MODIFIABLE      0x00
-#define LOCAL_MODIFY        0x01
-#define REMOTE_MODIFY       0x02
-#define MODIFIABLE          0x03
-#define LOCAL_ACCESS_ONLY   0x04
-#define MUTABLE_TYPE        0x08
-#define MUTABLE_LENGTH      0x10
-#define INDIRECT            0x20
-#define PROP_OWNED          0x40
-#define PROP_DIRTY          0x80
-
-/*! Used to hold look-up table records. */
-typedef struct {
-    const char *key;
-    void **val;
-    int len;
-    mpr_prop prop;
-    mpr_type type;
-    char flags;
-} mpr_tbl_record_t, *mpr_tbl_record;
-
-/*! Used to hold look-up tables. */
-typedef struct _mpr_tbl {
-    mpr_tbl_record rec;
-    int count;
-    int alloced;
-    char dirty;
-} mpr_tbl_t, *mpr_tbl;
-
-typedef struct _mpr_dict {
-    struct _mpr_tbl *synced;
-    struct _mpr_tbl *staged;
-} mpr_dict_t, *mpr_dict;
-
 /**** Graph ****/
 
 /*! A list of function and context pointers. */
@@ -244,7 +207,10 @@ typedef struct _mpr_obj
     struct _mpr_graph *graph;       /*!< Pointer back to the graph. */
     mpr_id id;                      /*!< Unique id for this object. */
     void *data;                     /*!< User context pointer. */
-    struct _mpr_dict props;         /*!< Properties associated with this signal. */
+    struct {
+        struct _mpr_tbl *synced;
+        struct _mpr_tbl *staged;
+    } props;                        /*!< Properties associated with this signal. */
     int version;                    /*!< Version number. */
     mpr_type type;                  /*!< Object type. */
 } mpr_obj_t, *mpr_obj;

@@ -1,5 +1,5 @@
 #include <mapper/mapper.h>
-#include "type.h"
+#include "util/mpr_type_get_size.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>

@@ -1,8 +1,9 @@
 #ifndef TYPE_H_INCLUDED
 #define TYPE_H_INCLUDED
 
-#include <mapper/mapper.h>
-#include "debug_macro.h"
+#include "util/mpr_inline.h"
+#include "util/debug_macro.h"
+#include <mapper/mapper_constants.h>
 
 /*! Helper to find size of signal value types. */
 MPR_INLINE static int mpr_type_get_size(mpr_type type)
