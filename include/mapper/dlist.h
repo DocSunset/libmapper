@@ -31,17 +31,16 @@ void mpr_dlist_filter(mpr_dlist *query, mpr_dlist src, mpr_dquery_callback *cb);
 
 /* The `mpr_dlist` API provides a generic list cell */
 
-/* List cells can be requested to allocate data, in which case they take ownership of the data, or
- * they can be passed another list cell. When a `mpr_dlist` is copied or passed as data to a new
- * cell, rather than copying its data, a reference to it is used. In this special case, a reference
- * counting mechanism is used to ensure that the lifetime of the resource exceeds that of all
- * references to it. The counting mechanism tracks cells that directly refer to other cells,
+/* A reference counting mechanism is used to ensure that the lifetime of dlist managed memory
+ * exceeds that of all references to it. 
+ * 
+ * The counting mechanism tracks cells that directly refer to other cells,
  * and forward links within lists of cells; backwards links are not counted so as to avoid
  * creating reference cycles. Because of this, if the user does not keep a reference to the
  * front of the list, e.g. while iterating over a list, then the list will be progressively
  * freed as the iterator advances through the list. */
 
-/* The user should never assign to or from a `mpr_dlist`, as doing so would circumvent the
+/* The user should only assign 0 to `mpr_dlist`, as other assignments would circumvent the
  * reference counting mechanism. All functions that would require the user to receive a
  * value from the API should use a return variable in the form of a pointer to a `mpr_dlist`,
  * usually called `dst`. Defined behavior should be given for all values of `dst`
@@ -49,15 +48,13 @@ void mpr_dlist_filter(mpr_dlist *query, mpr_dlist src, mpr_dquery_callback *cb);
  * Obviously, undefined behavior will result if a pointer to something else is given. */
 
 /* A null pointer is always considered a valid list, i.e. a null list.
- * Note however that many methods require a pointer to a list; this pointer must not be null,
+ * Note however that many methods require a pointer to a list; this pointer should not be null,
  * although the dereferenced value may be. */
 
-/* TODO: should the list functionality be distinct from the reference counted smart pointer
+/* DATATODO: should the list functionality be distinct from the reference counted smart pointer
  * functionality? It probably should, shouldn't it... */
 
 /* Memory handling */
-
-/* Handler function for queries */
 
 /* Allocate a new mpr_dlist cell pointing to `data` and direct `dst` toward it.
  * 
