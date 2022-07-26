@@ -26,6 +26,7 @@
  #endif
 #endif
 
+#include "dataset.h"
 #include "mapper_internal.h"
 #include "types_internal.h"
 #include "config.h"
@@ -90,6 +91,13 @@ const char* net_msg_strings[] =
     "/unmap",                   /* MSG_UNMAP */
     "/unmapped",                /* MSG_UNMAPPED */
     "/who",                     /* MSG_WHO */
+    "/data/signal",             /* MSG_DATA_SIG */
+    "/data/map",                /* MSG_DATA_MAP */
+    "/data/mapTo",              /* MSG_DATA_MAP_TO */
+    "/data/mapped",             /* MSG_DATA_MAPPED */
+    "/data/map/modify",         /* MSG_DATA_MAP_MOD */
+    "/data/unmap",              /* MSG_DATA_UNMAP */
+    "/data/unmapped",           /* MSG_DATA_UNMAPPED */
 };
 
 #define HANDLER_ARGS const char*, const char*, lo_arg**, int, lo_message, void*
@@ -1001,6 +1009,8 @@ static int handler_dev(const char *path, const char *types, lo_arg **av, int ac,
         }
         rs = rs->next;
     }
+
+    /* DATATODO: check for waiting data maps */
 done:
     mpr_list_free(links);
     mpr_msg_free(props);
@@ -1112,6 +1122,7 @@ static int handler_subscribe(const char *path, const char *types, lo_arg **av,
             flags |= MPR_MAP_IN;
         else if (0 == strcmp(&av[i]->s, "maps_out"))
             flags |= MPR_MAP_OUT;
+        /* DATATODO: handle data extension types */
         else if (0 == strcmp(&av[i]->s, "@version")) {
             /* next argument is last device version recorded by subscriber */
             ++i;
@@ -1639,6 +1650,71 @@ static int handler_map(const char *path, const char *types, lo_arg **av, int ac,
     props = mpr_msg_parse_props(ac, types, av);
     mpr_net_handle_map(net, map, props);
     mpr_msg_free(props);
+    return 0;
+}
+
+void _find_data_map(mpr_data_map *map, mpr_data_sig *src, mpr_data_sig *dst,
+                    char * src_name, char * dst_name, char * src_sig_name, char * dst_sig_name)
+{
+    *src_sig_name = *dst_sig_name = '\0'; /* temporarily null terminate the signal names after the device name */
+}
+
+/* create a new data map record in the graph, including the involved devices and data signals if they are not already know.
+ * It is assumed that if this is called, a map between these data signals must not already exist. */
+mpr_data_map_stage_data_map(mpr_data_sig src, mpr_data_sig dst, char * src_name, char *dst_name, const char * types, lo_arg **av, int ac)
+{
+}
+
+void _send_data_map_to(mpr_data_map map)
+{
+}
+
+void _update_data_map(mpr_data_map map, const char * types, lo_arg **av, int ac)
+{
+}
+
+/*! When the /data/map message is received by the destination device, it responds
+ *  by sending /data/mapTo on the admin bus. 
+ *  The message should have the format `/data/map[To] full_src_name full_dst_name *props` */
+static int handler_data_map(const char *path, const char *types, lo_arg **av, int ac,
+                            lo_message msg, void * user)
+{
+    mpr_graph gph = (mpr_graph)user;
+    mpr_net net = &gph->net;
+    mpr_msg props;
+
+    RETURN_ARG_UNLESS(net->num_devs, 0);
+    RETURN_ARG_UNLESS(ac > 2, 0);
+    RETURN_ARG_UNLESS(types[0] == LO_STRING && types[1] == LO_STRING, 0);
+    char * src_name, * src_sig_name, * dst_name, * dst_sig_name;
+    src_sig_name = src_name = &av[0]->s; ++src_sig_name; while(*src_sig_name != '/') ++src_sig_name;
+    dst_sig_name = dst_name = &av[1]->s; ++dst_sig_name; while(*dst_sig_name != '/') ++dst_sig_name;
+
+    mpr_data_map map;
+    mpr_data_sig src, dst;
+    _find_data_map(&map, &src, &dst, src_name, dst_name, src_sig_name, dst_sig_name);
+
+    /* If the map already exists, merely update its properties
+     * Elif received by the source, merely create the map
+     * Elif received by the destination, create the map and respond with /data/mapTo on the admin bus
+     * Elif received by a 3rd party to the map, create the map only if subscribed to either device in the map */
+
+    if (map) {
+        _update_data_map(map, types, av, ac);
+    } else if (src && src->is_local) {
+        _stage_data_map(src, dst, src_name, dst_name, types, av, ac);
+    } else if (dst && dst->is_local) {
+        map = _stage_data_map(src, dst, src_name, dst_name, types, av, ac);
+        _send_data_map_to(map);
+    } else {
+        *src_sig_name = *dst_sig_name = '\0'; /* temporarily null terminate the signal names after the device name */
+        if (gph->autosub & MPR_DATA_MAP
+            || mpr_graph_subscribed_by_dev(gph, src_name)
+            || mpr_graph_subscribed_by_dev(gph, dst_name))
+            _stage_data_map(src, dst, src_name, dst_name, types, av, ac);
+        *src_sig_name = *dst_sig_name = '/';
+    }
+
     return 0;
 }
 

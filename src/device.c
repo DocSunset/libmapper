@@ -15,6 +15,7 @@
 
 #include <stddef.h>
 
+#include "dataset.h"
 #include "mapper_internal.h"
 #include "types_internal.h"
 #include "config.h"
@@ -561,6 +562,10 @@ mpr_id mpr_dev_get_unused_sig_id(mpr_local_dev dev)
     return id;
 }
 
+/* TODO: there may be a bug if two devices sharing a graph have signals with the same name. One work around
+ * might be to cache signals whose methods need to be added, and actually add them when the device is registered.
+ * Another alternative would be to ensure that each device has a unique network address for receiving peer to peer
+ * traffic */
 void mpr_dev_add_sig_methods(mpr_local_dev dev, mpr_local_sig sig)
 {
     mpr_net net;
@@ -1385,3 +1390,30 @@ void mpr_dev_manage_subscriber(mpr_local_dev dev, lo_address addr, int flags,
         mpr_net_send(net);
     }
 }
+
+/* Datasets */
+int mpr_dev_data_handler(const char *path, const char *types, lo_arg **argv, int argc,
+                    lo_message msg, void *data)
+{
+    mpr_local_data_sig sig = (mpr_local_data_sig)data;
+    mpr_local_dev dev;
+    TRACE_RETURN_UNLESS(sig && (dev = sig->dev), 0,
+                        "error in mpr_dev_data_handler, cannot retrieve user data\n");
+    /* DATATODO: implement mpr_dev_data_handler */
+    return 0;
+}
+
+void mpr_dev_add_data_sig_methods(mpr_local_dev dev, mpr_local_data_sig sig)
+{
+    RETURN_UNLESS(sig && sig->is_local);
+    mpr_net net = &dev->obj.graph->net;
+    lo_server_add_method(net->servers[SERVER_TCP], sig->path, NULL, mpr_dev_data_handler, (void*)sig);
+}
+
+void mpr_dev_del_data_sig_methods(mpr_local_dev dev, mpr_local_data_sig sig)
+{
+    RETURN_UNLESS(sig && sig->is_local);
+    mpr_net net = &dev->obj.graph->net;
+    lo_server_del_method(net->servers[SERVER_TCP], sig->path, NULL);
+}
+

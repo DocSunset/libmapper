@@ -121,11 +121,13 @@ mpr_map mpr_map_new(int num_src, mpr_sig *src, int num_dst, mpr_sig *dst)
                       mpr_dev_get_name(src[i]->dev), src[i]->name);
                 return 0;
             }
+            /* TODO: shouldn't we check mpr_dev_get_is_ready instead? */
             if (!src[i]->dev->name || !dst[j]->dev->name) {
-                /* Only allow this if devices are the same or share a graph. */
+                /* For now, only allow this if devices are the same or share a graph. */
                 if (src[i]->obj.graph == dst[j]->obj.graph)
                     continue;
                 trace("Cannot create map between uninitialized devices unless they share a graph.");
+                /* TODO: provide a mechanism to stage maps involving uninitialized devices */
                 return 0;
             }
             if (   strcmp(src[i]->name, dst[j]->name)==0 && dst[j]->dev->name

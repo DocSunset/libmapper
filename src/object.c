@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include "dataset.h"
 #include "mapper_internal.h"
 #include "types_internal.h"
 
@@ -207,6 +208,7 @@ void mpr_obj_push(mpr_obj o)
         }
     }
     else if (o->type & MPR_SIG) {
+        /* DATATODO: implement push for data signals */
         mpr_sig s = (mpr_sig)o;
         if (s->is_local) {
             mpr_type type = ((s->dir == MPR_DIR_OUT) ? MPR_SIG_OUT : MPR_SIG_IN);
@@ -235,6 +237,14 @@ void mpr_obj_push(mpr_obj o)
             }
             mpr_map_send_state(m, -1, MSG_MAP);
         }
+    }
+    else if (o->type & MPR_DATA_MAP) {
+        mpr_data_map m = (mpr_data_map)o;
+        mpr_net_use_bus(n);
+        mpr_data_sig src = m->src;
+        mpr_data_sig dst = m->dst;
+        RETURN_UNLESS(mpr_dev_get_is_ready(src->dev) && mpr_dev_get_is_ready(dst->dev));
+        mpr_data_map_send_state(m, MSG_DATA_MAP);
     }
     else {
         trace("mpr_obj_push(): unknown object type %d\n", o->type);

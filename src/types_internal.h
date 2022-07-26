@@ -113,28 +113,7 @@ typedef struct _mpr_net {
 
 /**** Messages ****/
 
-/*! Some useful strings for sending administrative messages. */
-typedef enum {
-    MSG_DEV,
-    MSG_DEV_MOD,
-    MSG_LOGOUT,
-    MSG_MAP,
-    MSG_MAP_TO,
-    MSG_MAPPED,
-    MSG_MAP_MOD,
-    MSG_NAME_PROBE,
-    MSG_NAME_REG,
-    MSG_PING,
-    MSG_SIG,
-    MSG_SIG_REM,
-    MSG_SIG_MOD,
-    MSG_SUBSCRIBE,
-    MSG_SYNC,
-    MSG_UNMAP,
-    MSG_UNMAPPED,
-    MSG_WHO,
-    NUM_MSG_STRINGS
-} net_msg_t;
+#include "net_msg.h"
 
 /*! Function to call when an allocated resource is locked. */
 typedef void mpr_resource_on_lock(struct _mpr_allocated_t *resource);

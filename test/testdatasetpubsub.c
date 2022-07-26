@@ -90,6 +90,10 @@ int main(int argc, char ** argv)
     mpr_dev subber = mpr_dev_new("test_subscriber", 0);
     mpr_data_sig subsig = mpr_data_sig_new(subber, "subsig", handler, MPR_DATA_ALL);
 
+    eprintf("Setting up monitor.\n");
+    mpr_graph g = mpr_graph_new(MPR_DATA_OBJ);
+    mpr_dev monitor = mpr_dev_new("test_monitor", g);
+
     eprintf("Setting up dataset.\n");
     mpr_time time = {0,0};
     mpr_data_record record = mpr_data_record_new(sig, MPR_SIG_UPDATE, 0, 1, MPR_FLT, &value, time);
@@ -98,8 +102,11 @@ int main(int argc, char ** argv)
 
     eprintf("Waiting for devices.\n");
     while(!(mpr_dev_get_is_ready(pubber) && mpr_dev_get_is_ready(subber))) {
-        mpr_dev_poll(pubber, 10);
-        mpr_dev_poll(subber, 10);
+#define POLL \
+        mpr_dev_poll(pubber, 10);\
+        mpr_dev_poll(subber, 10);\
+        mpr_dev_poll(monitor, 10)
+        POLL;
         if (done) goto done;
     }
 
@@ -109,8 +116,7 @@ int main(int argc, char ** argv)
 
     eprintf("Waiting for data map.\n");
     while(!mpr_data_map_get_is_ready(map)) {
-        mpr_dev_poll(pubber, 10);
-        mpr_dev_poll(subber, 10);
+        POLL;
         if (done) goto done;
     }
 
@@ -118,23 +124,24 @@ int main(int argc, char ** argv)
     mpr_dataset_publish_with_sig(data, pubsig);
 
     eprintf("Polling devices.\n");
-    mpr_dev_poll(pubber, 10);
-    mpr_dev_poll(subber, 10);
+    POLL;
     if (done) goto done;
 
-    /* TODO: update the dataset in various ways */
+    /* DATATODO: update the dataset in various ways */
+    /* DATATODO: check that monitor has noticed the dataset */
 
     eprintf("Withdrawing dataset.\n");
     mpr_dataset_withdraw(data);
 
     eprintf("Polling devices.\n");
-    mpr_dev_poll(pubber, 10);
-    mpr_dev_poll(subber, 10);
+    POLL;
     if (done) goto done;
 
   done:
     mpr_dev_free(pubber);
     mpr_dev_free(subber);
+    mpr_dev_free(monitor);
+    mpr_graph_free(g);
     mpr_data_record_free(record);
     mpr_dataset_free(data);
 

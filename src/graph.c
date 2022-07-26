@@ -87,6 +87,7 @@ static void send_subscribe_msg(mpr_graph g, mpr_dev d, int flags, int timeout)
         }
         if (MPR_MAP == (flags & MPR_MAP))
             lo_message_add_string(msg, "maps");
+        /* DATATODO: handle data extension types */
         else {
             if (flags & MPR_MAP_IN)
                 lo_message_add_string(msg, "incoming_maps");

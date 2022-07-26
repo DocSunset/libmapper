@@ -5,12 +5,6 @@
 extern "C" {
 #endif
 
-#if defined(WIN32) || defined(_MSC_VER)
-#define MPR_INLINE __inline
-#else
-#define MPR_INLINE __inline
-#endif
-
 /*! This file defines structs used to return information from the network. */
 
 #include <lo/lo.h>
@@ -27,10 +21,12 @@ enum {
     MPR_MAP_IN          = 0x08,             /*!< Incoming maps. */
     MPR_MAP_OUT         = 0x10,             /*!< Outgoing maps. */
     MPR_MAP             = 0x18,             /*!< All maps. */
-    MPR_DATASET         = 0x20,             /*!< Datasets. */
-    MPR_OBJ             = 0x3F,             /*!< All objects: devs, sigs, maps, datasets. */
-    MPR_LIST            = 0x40,             /*!< Object query. */
-    MPR_GRAPH           = 0x41,             /*!< Graph. */
+    MPR_DATA_SIG        = 0x20,             /*!< Dataset signals. */
+    MPR_DATA_MAP        = 0x40,             /*!< Dataset maps. */
+    MPR_DATA_OBJ        = 0x60,             /*!< Dataset objects. */
+    MPR_OBJ             = 0x6F,             /*!< All objects: devs, sigs, maps, dataset sigs, dataset maps. */
+    MPR_LIST            = 0x50,             /*!< Object query. */
+    MPR_GRAPH           = 0x51,             /*!< Graph. */
     MPR_BOOL            = 'b',  /* 0x62 */  /*!< Boolean value. */
     MPR_TYPE            = 'c',  /* 0x63 */  /*!< libmapper data type. */
     MPR_DBL             = 'd',  /* 0x64 */  /*!< 64-bit floating point. */

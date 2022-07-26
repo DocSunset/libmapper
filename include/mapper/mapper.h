@@ -578,20 +578,20 @@ mpr_data_sig mpr_data_sig_new(mpr_dev parent, const char *name,
 void mpr_data_sig_free(mpr_data_sig);
 
 /*! Get a list of datasets published by a signal.
- *  \param mpr_dlist*       A pointer to a `mpr_dlist` in which to return the list of datasets.
- *  \param mpr_data_sig    The signal to query. */
-void mpr_data_sig_get_pubs(mpr_dlist*, mpr_data_sig);
+ *  \param mpr_data_sig    The signal to query.
+ *  \param mpr_dlist*      A pointer to a `mpr_dlist` in which to return the list of datasets. */
+void mpr_data_sig_get_pubs(mpr_data_sig, mpr_dlist*);
 
 /*! Get a list of datasets subscribed to by a signal.
- *  \param mpr_dlist*       A pointer to a `mpr_dlist` in which to return the list of datasets.
- *  \param mpr_data_sig    The signal to query. */
-void mpr_data_sig_get_subs(mpr_dlist*, mpr_data_sig);
+ *  \param mpr_data_sig    The signal to query.
+ *  \param mpr_dlist*      A pointer to a `mpr_dlist` in which to return the list of datasets. */
+void mpr_data_sig_get_subs(mpr_data_sig, mpr_dlist*);
 
 /*! Get the device associated with a signal. */
 mpr_dev mpr_data_sig_get_dev(mpr_data_sig);
 
 /*! Set or change the event handler callback associated with a signal. */
-void mpr_data_sig_set_cb(mpr_data_sig, mpr_data_sig_handler*);
+void mpr_data_sig_set_cb(mpr_data_sig, mpr_data_sig_handler*, int events);
 
 /*! Associate a dataset with a data signal.
  *  A data map can be made from one data signal to another. This creates a subscription for the
