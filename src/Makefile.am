@@ -20,6 +20,7 @@ libmapper_la_SOURCES = device.c \
     graph.c \
     link.c \
     list.c \
+    map.c \
     network.c \
     object.c \
     properties.c \
