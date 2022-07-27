@@ -1,4 +1,5 @@
 #include <mapper/dlist.h>
+#include <mapper/rc.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,9 +98,9 @@ int confirm_contents(mpr_dlist list)
 
 int confirm_refcount(mpr_dlist list, size_t expected)
 {
-    if (mpr_dlist_get_refcount(list) != expected) {
+    if (mpr_rc_refcount(list) != expected) {
         eprintf("Actual refcount %lu does not match expected value %lu.\n"
-                , mpr_dlist_get_refcount(list)
+                , mpr_rc_refcount(list)
                 , expected
                 );
         fail = 1;
@@ -175,19 +176,6 @@ int check_pointers_equal(mpr_dlist list, void * original_pointer)
     return 0;
 }
 
-int try_to_free(mpr_dlist list, const char * name)
-{
-    eprintf("Attempting to free the list '%s'.\n", name);
-    mpr_dlist_free(&list);
-    if (list != 0) {
-        eprintf("List apparently freed successfuly, but not set to nullptr\n");
-        fail = 1;
-        return 1;
-    }
-    return 0;
-}
-
-
 int main(int argc, char ** argv)
 {
     parse_args(argc, argv);
@@ -198,8 +186,7 @@ int main(int argc, char ** argv)
     /* forward */
     {
         eprintf("Allocating a new list.\n");
-        mpr_dlist front = 0;
-        mpr_dlist_new(&front, 0, sizeof(dummy_t), &dummy_destructor);
+        mpr_dlist front = mpr_dlist_new(malloc(sizeof(dummy_t)), &dummy_destructor);
         if (check_not_null_list(front)) goto done;
 
         eprintf("Confirming list's refcount.\n");
@@ -207,7 +194,7 @@ int main(int argc, char ** argv)
 
         eprintf("Inserting after with ref.\n");
         mpr_dlist back = 0;
-        mpr_dlist_insert_after(&back, front, 0, sizeof(dummy_t), &dummy_destructor);
+        mpr_dlist_insert_after(&back, front, malloc(sizeof(dummy_t)), &dummy_destructor);
         if (check_not_null_list(back)) goto done;
 
         eprintf("Confirming refcounts.\n");
@@ -218,7 +205,7 @@ int main(int argc, char ** argv)
         if (confirm_length(front, 2)) goto done;
 
         eprintf("Inserting after without ref.\n");
-        mpr_dlist_insert_after(0, back, 0, sizeof(dummy_t), &dummy_destructor);
+        mpr_dlist_insert_after(0, back, malloc(sizeof(dummy_t)), &dummy_destructor);
 
         eprintf("Confirming list length.\n");
         if (confirm_length(front, 3)) goto done;
@@ -242,15 +229,14 @@ int main(int argc, char ** argv)
         eprintf("Confirming refcounts.\n");
         if (confirm_refcount(front, 1)) goto done;
 
-        if (try_to_free(front, "front")) goto done;
+        mpr_dlist_free(front);
         if (confirm_freed(3)) goto done;
     }
 
     /* backward */
     {
         eprintf("Allocating a new list.\n");
-        mpr_dlist back = 0;
-        mpr_dlist_new(&back, 0, sizeof(dummy_t), &dummy_destructor);
+        mpr_dlist back = mpr_dlist_new(malloc(sizeof(dummy_t)), &dummy_destructor);
         if (check_not_null_list(back)) goto done;
 
         eprintf("Confirming list's refcount.\n");
@@ -258,9 +244,9 @@ int main(int argc, char ** argv)
 
         eprintf("Inserting before with ref.\n");
         mpr_dlist front = 0;
-        mpr_dlist_insert_before(&front, back, 0, sizeof(dummy_t), &dummy_destructor);
-        mpr_dlist_insert_before(&front, front, 0, sizeof(dummy_t), &dummy_destructor);
-        mpr_dlist_insert_before(&front, front, 0, sizeof(dummy_t), &dummy_destructor);
+        mpr_dlist_insert_before(&front, back, malloc(sizeof(dummy_t)), &dummy_destructor);
+        mpr_dlist_insert_before(&front, front, malloc(sizeof(dummy_t)), &dummy_destructor);
+        mpr_dlist_insert_before(&front, front, malloc(sizeof(dummy_t)), &dummy_destructor);
         if (check_not_null_list(front)) goto done;
 
         eprintf("Confirming refcounts.\n");
@@ -271,7 +257,7 @@ int main(int argc, char ** argv)
         if (confirm_length(back, 4)) goto done;
 
         eprintf("Inserting before without ref.\n");
-        mpr_dlist_insert_before(0, front, 0, sizeof(dummy_t), &dummy_destructor);
+        mpr_dlist_insert_before(0, front, malloc(sizeof(dummy_t)), &dummy_destructor);
 
         eprintf("Confirming list length is unchanged.\n");
         if (confirm_length(back, 4)) goto done;
@@ -305,10 +291,10 @@ int main(int argc, char ** argv)
         eprintf("Confirming list length is unchanged.\n");
         if (confirm_length(back, 3)) goto done;
 
-        if (try_to_free(front, "front")) goto done;
+        mpr_dlist_free(front);
         if (confirm_freed(1)) goto done;
 
-        if (try_to_free(back, "back")) goto done;
+        mpr_dlist_free(back);
         if (confirm_freed(2)) goto done;
 
     }

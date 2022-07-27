@@ -93,9 +93,9 @@ int confirm_contents(mpr_dlist list, size_t i)
 
 int confirm_refcount(mpr_dlist list, size_t expected)
 {
-    if (mpr_dlist_get_refcount(list) != expected) {
+    if (mpr_rc_refcount(list) != expected) {
         eprintf("Actual refcount %lu does not match expected value %lu.\n"
-                , mpr_dlist_get_refcount(list)
+                , mpr_rc_refcount(list)
                 , expected
                 );
         fail = 1;
@@ -164,12 +164,7 @@ int confirm_freed(size_t expected)
 int try_to_free(mpr_dlist list, const char * name)
 {
     eprintf("Attempting to free the list '%s'.\n", name);
-    mpr_dlist_free(&list);
-    if (list != 0) {
-        eprintf("List apparently freed successfuly, but not set to nullptr\n");
-        fail = 1;
-        return 1;
-    }
+    mpr_dlist_free(list);
     return 0;
 }
 
@@ -186,7 +181,7 @@ int main(int argc, char ** argv)
         mpr_dlist front = 0;
         mpr_dlist back = 0;
         for (size_t i = 0; i < initial_size; ++i) {
-             mpr_dlist_append(&front, &back, 0, sizeof(dummy_t), &dummy_destructor);
+             mpr_dlist_append(&front, &back, malloc(sizeof(dummy_t)), &dummy_destructor);
              mpr_dlist_data_as(dummy_t*, back)->a = i;
              mpr_dlist_data_as(dummy_t*, back)->b = i;
         }

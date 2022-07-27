@@ -8,6 +8,7 @@ extern "C" {
 #include <mapper/mapper_constants.h>
 #include <mapper/mapper_types.h>
 #include <mapper/dlist.h>
+#include <mapper/rc.h>
 
 #ifdef WIN32
 #define strdup _strdup
@@ -545,7 +546,7 @@ learning algorithms. */
  *  \param data          The dataset affected by the event.
  *  \param record        The record affected by the event, or null if the event affects the whole dataset 
  *  \param event         The type of event; see `mpr_data_evt`. */
-typedef void mpr_data_sig_handler(mpr_data_sig dsig, mpr_dataset data, mpr_dlist record, int event);
+typedef void mpr_data_sig_handler(mpr_data_sig dsig, mpr_dataset data, mpr_data_record record, int event);
 
 /*! Create a data signal.
  *  A data signal is an endpoint for publishing and subscribing to datasets to be used by a device,
@@ -571,14 +572,20 @@ mpr_data_sig mpr_data_sig_new(mpr_dev parent, const char *name,
 void mpr_data_sig_free(mpr_data_sig);
 
 /*! Get a list of datasets published by a signal.
- *  \param mpr_data_sig    The signal to query.
- *  \param mpr_dlist*      A pointer to a `mpr_dlist` in which to return the list of datasets. */
-void mpr_data_sig_get_pubs(mpr_data_sig, mpr_dlist*);
+ *  \param sig          The signal to query.
+ *  \return             A reference to a `mpr_dlist` of datasets published by the signal. 
+ *                      Use e.g. `mpr_dlist_next(&list)` to iterate. 
+ *                      Remember to free the list when you're done with it, if you don't iterate
+ *                      all the way to the end of the list. */
+mpr_dlist mpr_data_sig_get_pubs(mpr_data_sig sig);
 
 /*! Get a list of datasets subscribed to by a signal.
- *  \param mpr_data_sig    The signal to query.
- *  \param mpr_dlist*      A pointer to a `mpr_dlist` in which to return the list of datasets. */
-void mpr_data_sig_get_subs(mpr_data_sig, mpr_dlist*);
+ *  \param sig          The signal to query.
+ *  \return             A reference to a `mpr_dlist` of datasets subscribed to by the signal. 
+ *                      Use e.g. `mpr_dlist_next(&list)` to iterate. 
+ *                      Remember to free the list when you're done with it, if you don't iterate
+ *                      all the way to the end of the list. */
+mpr_dlist mpr_data_sig_get_subs(mpr_data_sig);
 
 /*! Get the device associated with a signal. */
 mpr_dev mpr_data_sig_get_dev(mpr_data_sig);
@@ -702,7 +709,13 @@ const char * mpr_dataset_get_name(mpr_dataset data);
  *                      be freed by the user. */
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx);
 
-void mpr_dataset_get_records(mpr_dataset data, mpr_dlist *records);
+/*! Get a list of data records from a dataset.
+ *  \param data         The dataset to query.
+ *  \return             A reference to the dlist of records.
+ *                      Use e.g. `mpr_dlist_next(&list)` to iterate. 
+ *                      Remember to free the list when you're done with it, if you don't iterate
+ *                      all the way to the end of the list. */
+mpr_dlist mpr_dataset_get_records(mpr_dataset data);
 
 /*! Get the number of data records stored in a dataset.
  *  \param data         The dataset to query.
@@ -711,11 +724,11 @@ unsigned int mpr_dataset_get_num_records(mpr_dataset data);
 
 /*! Get a list of signals recorded in a dataset.
  *  \param data         The dataset to inspect.
- *  \param sigs         A pointer to a `mpr_dlist` in which to return the results.
+ *  \return             A reference to a `mpr_dlist` of signals found in the dataset.
  *                      Use e.g. `mpr_dlist_next(&list)` to iterate. 
  *                      Remember to free the list when you're done with it, if you don't iterate
  *                      all the way to the end of the list. */
-void mpr_dataset_get_sigs(mpr_dataset data, mpr_dlist *sigs);
+mpr_dlist mpr_dataset_get_sigs(mpr_dataset data);
 
 /*! Create a new data recorder. 
  *  \param name         Optional name for the recorder device.
@@ -782,10 +795,11 @@ int mpr_data_recorder_get_is_recording(mpr_data_recorder recorder);
 
 /*! Get a list of datasets recorded by the recorder.
  *  \param recorder     The recorder to query.
- *  \param datasets     A pointer to the list in which to return the results.
- *                      Remember to free this list when you're done with it, if you don't iterate
+ *  \return             A reference to the list of datasets.
+ *                      Use e.g. `mpr_dlist_next(&list)` to iterate. 
+ *                      Remember to free the list when you're done with it, if you don't iterate
  *                      all the way to the end of the list. */
-void mpr_data_recorder_get_recordings(mpr_data_recorder recorder, mpr_dlist *datasets);
+mpr_dlist mpr_data_recorder_get_recordings(mpr_data_recorder recorder);
 
 /** @} */ /* end of group Datasets */
 

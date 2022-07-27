@@ -20,7 +20,6 @@ libmapper_la_SOURCES = device.c \
     graph.c \
     link.c \
     list.c \
-    map.c \
     network.c \
     object.c \
     properties.c \
@@ -33,6 +32,7 @@ libmapper_la_SOURCES = device.c \
     dataset.c \
     array.c \
     dlist.c \
+    rc.c \
     map.c
 libmapper_la_LIBADD = $(liblo_LIBS)
 libmapper_la_LDFLAGS = $(lt_windows) -export-dynamic -version-info @SO_VERSION@
