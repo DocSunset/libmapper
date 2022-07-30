@@ -487,6 +487,7 @@ struct _mpr_dev {
 struct _mpr_local_dev {
     MPR_DEV_STRUCT_ITEMS
 
+    /* TODO: write a test to make sure signal name conflicts are indeed avoided by devices having their own servers */
     lo_server servers[2];
 
     mpr_allocated_t ordinal_allocator;  /*!< A unique ordinal for this device instance. */

@@ -8,27 +8,40 @@
 #include "util/mpr_type_get_size.h"
 #include "util/debug_macro.h"
 #include "util/skip_slash.h"
+#include <mapper/rc.h>
 #include <mapper/mapper.h>
 
 /* Data records */
 
+void mpr_data_record_destructor(mpr_rc rc)
+{
+    mpr_data_record record = (mpr_data_record)rc;
+    if (record->value) free(record->value);
+}
+
 mpr_data_record mpr_data_record_new(mpr_sig sig, mpr_sig_evt evt, mpr_id instance,
                                     int length, mpr_type type, const void * value, mpr_time time)
 {
-    mpr_data_record record = malloc(sizeof(mpr_data_record_t));
+    mpr_data_record record = (mpr_data_record)mpr_rc_new(sizeof(mpr_data_record_t), &mpr_data_record_destructor);
+    if (0 == record) return 0;
     record->sig = sig;
     record->evt = evt;
     record->instance = instance;
     record->length = length;
     record->type = type;
-    record->value = value;
+    record->value = calloc(length, mpr_type_get_size(type));
+    if (0 == record->value) {
+        mpr_rc_free(record);
+        return 0;
+    }
+    else memcpy(record->value, (void *)value, length * mpr_type_get_size(type));
     record->time = time;
     return record;
 }
 
 void mpr_data_record_free(mpr_data_record record)
 {
-    free(record);
+    mpr_rc_free((mpr_rc)record);
 }
 
 mpr_sig      mpr_data_record_get_sig     (const mpr_data_record record) { return record->sig; }
@@ -76,30 +89,17 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 {
     RETURN_UNLESS(data);
     /* copy record metadata */
-    mpr_data_record _record = 0;
-    mpr_dlist_append(&data->recs.front, &data->recs.back, (void**)&_record, sizeof(mpr_data_record_t), &free);
-    TRACE_RETURN_UNLESS(_record, ;, "Failed to calloc memory for storing a record.\n");
-    *_record = *record;
+    mpr_dlist_append(&data->recs.front, &data->recs.back, (void*)record, &mpr_data_record_free);
 
-    /* copy values */
-    size_t value_bytes = mpr_type_get_size(record->type) * record->length;
-    void * value = malloc(value_bytes);
-    TRACE_RETURN_UNLESS(value, ;, "Failed to malloc memory for storing a record value\n");
-    memcpy(value, (void *)record->value, value_bytes);
-    _record->value = value;
-
-    /* DATATODO: fully convert to using mpr_dlist for everything so that this is easier... */
-    /* if the signal in this record does not intersect with the signal list
-     * i.e. we have never seen this signal before
-     * then add it to the internal signal list */
-    mpr_dlist iter = 0;
-    mpr_sig rec_sig = _record->sig;
-    for (mpr_dlist_make_ref(&iter, data->sigs); iter; mpr_dlist_next(&iter)) {
-        mpr_sig iter_sig = *mpr_dlist_data_as(mpr_sig*, iter);
+    mpr_sig rec_sig = record->sig;
+    mpr_dlist iter;
+    for (iter = mpr_dlist_make_ref(data->sigs); iter; mpr_dlist_next(&iter)) {
+        mpr_sig iter_sig = mpr_dlist_data_as(mpr_sig, iter);
         if (rec_sig->obj.id == iter_sig->obj.id) break;
     }
     if (iter == 0) {
-        mpr_dlist_prepend(&data->sigs, (void**)&rec_sig, 0, &mpr_dlist_no_destructor);
+        /* DATATODO: the signal refs stored in a dataset may become invalidated. Should signals be immutable? */
+        mpr_dlist_prepend(&data->sigs, (void*)rec_sig, &mpr_dlist_no_destructor);
         printf("Added signal, list size is %lu\n", mpr_dlist_get_length(data->sigs));
     }
     mpr_dlist_free(&iter);
@@ -108,7 +108,7 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
 {
     RETURN_ARG_UNLESS(data && data->recs.front, 0);
-    mpr_dlist iter = 0; mpr_dlist_make_ref(&iter, data->recs.front);
+    mpr_dlist iter = mpr_dlist_make_ref(data->recs.front);
     unsigned int i = 0;
     while(i < idx && iter) {
         ++i;
@@ -119,10 +119,10 @@ mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
     return ret;
 }
 
-void mpr_dataset_get_records(mpr_dataset data, mpr_dlist *records)
+mpr_dlist mpr_dataset_get_records(mpr_dataset data)
 {
     RETURN_UNLESS(data);
-    mpr_dlist_make_ref(records, data->recs.front);
+    return mpr_dlist_make_ref(data->recs.front);
 }
 
 unsigned int mpr_dataset_get_num_records(mpr_dataset data)
@@ -131,10 +131,10 @@ unsigned int mpr_dataset_get_num_records(mpr_dataset data)
     return mpr_dlist_get_length(data->recs.front);
 }
 
-void mpr_dataset_get_sigs(mpr_dataset data, mpr_dlist *sigs)
+mpr_dlist mpr_dataset_get_sigs(mpr_dataset data)
 {
     RETURN_UNLESS(data);
-    mpr_dlist_make_ref(sigs, data->sigs);
+    return mpr_dlist_make_ref(data->sigs);
 }
 
 mpr_data_sig mpr_dataset_publish(mpr_dataset data, mpr_dev dev, const char * name,
@@ -264,8 +264,8 @@ static void sig_handler(mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int lengt
     mpr_time t;
     mpr_time_set(&t, MPR_NOW);
     mpr_data_record record = mpr_data_record_new(sig, evt, instance, length, type, value, t);
+    if (0 == record) return;
     mpr_dataset_add_record(rec->data, record);
-    mpr_data_record_free(record);
 }
 
 static inline void _maybe_add_recording(mpr_data_recorder rec)
@@ -273,9 +273,10 @@ static inline void _maybe_add_recording(mpr_data_recorder rec)
     if (rec->recording) {
         /* DATATODO: provide better generic names */
         mpr_dataset data = mpr_dataset_new("recording", 0);
-        mpr_dlist_make_ref(&data->recs.front, rec->data->recs.front);
-        mpr_dlist_make_ref(&data->recs.back, rec->data->recs.back);
-        mpr_dlist_insert_before(&rec->recordings, rec->recordings, (void**)&data, 0, &mpr_dataset_free);
+        /* set the dataset's list to the bounds of the recorder's data buffer */
+        data->recs.front = mpr_dlist_make_ref(rec->data->recs.front);
+        data->recs.back  = mpr_dlist_make_ref(rec->data->recs.back);
+        mpr_dlist_prepend(&rec->recordings, (void*)data, &mpr_dataset_free);
     }
 }
 
@@ -316,10 +317,10 @@ void mpr_data_recorder_arm(mpr_data_recorder rec)
     rec->armed = 1;
 }
 
-void mpr_data_recorder_get_recordings(mpr_data_recorder rec, mpr_dlist *datasets)
+mpr_dlist mpr_data_recorder_get_recordings(mpr_data_recorder rec)
 {
     RETURN_UNLESS(rec);
-    mpr_dlist_make_ref(datasets, rec->recordings);
+    return mpr_dlist_make_ref(rec->recordings);
 }
 
 /* Dataset signals */
@@ -413,22 +414,22 @@ void mpr_data_sig_free_internal(mpr_data_sig sig)
 {
     RETURN_UNLESS(sig);
     free(sig->path);
-    mpr_dlist_free(&sig->pubs);
-    mpr_dlist_free(&sig->subs);
+    mpr_dlist_free(sig->pubs);
+    mpr_dlist_free(sig->subs);
     FUNC_IF(mpr_tbl_free, sig->obj.props.synced);
     FUNC_IF(mpr_tbl_free, sig->obj.props.staged);
     /* DATATODO: what is the purpose of increment version? */
     mpr_obj_increment_version((mpr_obj)sig);
 }
 
-void mpr_data_sig_get_pubs(mpr_data_sig sig, mpr_dlist* pubs)
+mpr_dlist mpr_data_sig_get_pubs(mpr_data_sig sig)
 {
-    mpr_dlist_make_ref(pubs, sig->pubs);
+    return sig ? mpr_dlist_make_ref(sig->pubs) : 0;
 }
 
-void mpr_data_sig_get_subs(mpr_data_sig sig, mpr_dlist* subs)
+mpr_dlist mpr_data_sig_get_subs(mpr_data_sig sig)
 {
-    mpr_dlist_make_ref(subs, sig->subs);
+    return sig ? mpr_dlist_make_ref(sig->subs) : 0;
 }
 
 mpr_dev mpr_data_sig_get_dev(mpr_data_sig sig)
@@ -485,10 +486,10 @@ mpr_data_map mpr_data_map_new(mpr_data_sig src, mpr_data_sig dst)
     mpr_data_map m;
     /* DATATODO: maps should be added to the graph's list */
     if (src->is_local) {
-        m = calloc(1, sizeof(mpr_local_data_map));
+        m = calloc(1, sizeof(mpr_local_data_map_t));
         m->is_local = 1;
     }
-    else m = calloc(1, sizeof(mpr_data_map));
+    else m = calloc(1, sizeof(mpr_data_map_t));
     m->obj.type = MPR_DATA_MAP;
     m->obj.graph = src->obj.graph;
     m->obj.id = mpr_dev_generate_unique_id(src->dev);

@@ -244,13 +244,13 @@ int main(int argc, char ** argv)
     mpr_data_recorder_disarm(rec);
 
     eprintf("Getting dataset.\n");
-    mpr_dlist datalist = 0;
-    mpr_data_recorder_get_recordings(rec, &datalist);
-    data = mpr_dlist_data_as(mpr_dataset, datalist);
+    mpr_dlist datalist = mpr_data_recorder_get_recordings(rec);
+    data = mpr_rc_make_ref(mpr_dlist_data_as(mpr_dataset, datalist));
+    mpr_dlist_free(datalist);
 
     eprintf("Checking number of records\n");
-    mpr_dlist records = 0;
-    for (mpr_dataset_get_records(data, &records); records; mpr_dlist_next(&records)) {
+    mpr_dlist records;
+    for (records = mpr_dataset_get_records(data); records; mpr_dlist_next(&records)) {
         mpr_data_record record = mpr_dlist_data_as(mpr_data_record, records);
         if (mpr_data_record_get_evt(record) == MPR_SIG_UPDATE) ++updates_recorded;
     }

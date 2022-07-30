@@ -88,7 +88,7 @@ int main(int argc, char ** argv)
 
     eprintf("Getting signals.\n");
     int result = 1;
-    mpr_dlist sigs = 0; mpr_dataset_get_sigs(data, &sigs);
+    mpr_dlist sigs = mpr_dataset_get_sigs(data);
     eprintf("Checking list size.\n");
     if (mpr_dlist_get_length(sigs) != 3) {
         eprintf("Signal list size %d != 3.\n", mpr_dlist_get_length(sigs));

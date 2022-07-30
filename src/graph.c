@@ -8,6 +8,7 @@
 #else
 
 #endif
+#include "dataset.h"
 #include "mapper_internal.h"
 
 #ifdef HAVE_LIBPTHREAD
@@ -608,6 +609,25 @@ mpr_map mpr_graph_get_map_by_names(mpr_graph g, int num_src, const char **srcs, 
         maps = mpr_list_get_next(maps);
     }
     return map;
+}
+
+mpr_data_map mpr_graph_get_data_map_by_name(mpr_graph g, const char * src, const char * dst)
+{
+    /* DATATODO: implement graph get data map by name */
+    return 0;
+}
+
+mpr_data_sig mpr_graph_get_data_sig_by_name(mpr_graph g, const char * name)
+{
+    /* DATATODO: implement get data sig by name
+    const char *no_slash = skip_slash(name);
+    mpr_dlist sigs = 0;
+    for (mpr_dlist_make_ref(&sigs, g->dsigs); sigs; mpr_dlist_next(&sigs)) {
+        if (0 != strcmp(mpr_dlist_data_as(mpr_data_sig, sigs)->name, dev->name)) continue;
+        mpr_rc_make_ref(ret, mpr_dlist_data(sig));
+    }
+    return 0;
+    */
 }
 
 mpr_map mpr_graph_add_map(mpr_graph g, mpr_id id, int num_src, const char **src_names,

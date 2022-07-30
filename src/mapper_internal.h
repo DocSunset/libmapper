@@ -146,6 +146,11 @@ mpr_obj mpr_graph_get_obj(mpr_graph g, mpr_type type, mpr_id id);
  *  \return             Information about the device, or zero if not found. */
 mpr_dev mpr_graph_get_dev_by_name(mpr_graph g, const char *name);
 
+/*! Find a data map by the names of its source and destination signals. */
+mpr_data_map mpr_graph_get_data_map_by_name(mpr_graph g, const char * src, const char * dst);
+
+mpr_data_sig mpr_graph_get_data_sig_by_name(mpr_graph g, const char * name);
+
 mpr_map mpr_graph_get_map_by_names(mpr_graph g, int num_src, const char **srcs, const char *dst);
 
 /*! Call registered graph callbacks for a given object type.

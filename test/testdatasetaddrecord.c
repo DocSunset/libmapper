@@ -100,25 +100,26 @@ int main(int argc, char ** argv)
     mpr_dataset_add_record(data, in[1]);
     mpr_dataset_add_record(data, in[2]);
 
-	mpr_data_record out[3];
-    out[0] = mpr_dataset_get_record(data, 0);
-    out[1] = mpr_dataset_get_record(data, 1);
-    out[2] = mpr_dataset_get_record(data, 2);
-
     int result = 0;
-    for (int i = 0; i < 3; ++i) {
-        mpr_sig sig_in  = mpr_data_record_get_sig(in[i]);
-        mpr_sig sig_out = mpr_data_record_get_sig(out[i]);
-        const char * name1 = mpr_obj_get_prop_as_str(sig_in, MPR_PROP_NAME, 0);
-        const char * name2 = mpr_obj_get_prop_as_str(sig_out, MPR_PROP_NAME, 0);
-        if (0 != strcmp(name1, name2)) {
-            eprintf("%dth signal names differ\n", i);
-            eprintf("%s vs %s\n", name1, name2);
+    int i;
+    for (mpr_dlist iter = mpr_dataset_get_records(data); iter; mpr_dlist_next(&iter)) {
+        mpr_data_record out = mpr_dlist_data_as(mpr_data_record, iter);
+        mpr_sig sig_out = mpr_data_record_get_sig(out);
+        for (i = 0; i < 3; ++i)
+        {
+            mpr_sig sig_in  = mpr_data_record_get_sig(in[i]);
+            const char * name1 = mpr_obj_get_prop_as_str(sig_in, MPR_PROP_NAME, 0);
+            const char * name2 = mpr_obj_get_prop_as_str(sig_out, MPR_PROP_NAME, 0);
+            if (0 == strcmp(name1, name2)) break;
+        }
+        if (i == 3) {
+            eprintf("Could not find matching signal\n", i);
             result = result || 1;
+            break;
         }
 
         mpr_sig_evt evt_in  = mpr_data_record_get_evt(in[i]);
-        mpr_sig_evt evt_out = mpr_data_record_get_evt(out[i]);
+        mpr_sig_evt evt_out = mpr_data_record_get_evt(out);
         if (evt_in != evt_out) {
             eprintf("%dth events differ\n", i);
             eprintf("%d vs %d\n", evt_in, evt_out);
@@ -126,7 +127,7 @@ int main(int argc, char ** argv)
         }
 
         mpr_type type_in  = mpr_data_record_get_type(in[i]);
-        mpr_type type_out = mpr_data_record_get_type(out[i]);
+        mpr_type type_out = mpr_data_record_get_type(out);
         if (type_in != type_out) {
             eprintf("%dth types differ\n", i);
             eprintf("%d vs %d\n", type_in, type_out);
@@ -134,7 +135,7 @@ int main(int argc, char ** argv)
         }
 
         mpr_time time_in  = mpr_data_record_get_time(in[i]);
-        mpr_time time_out = mpr_data_record_get_time(out[i]);
+        mpr_time time_out = mpr_data_record_get_time(out);
         if (mpr_time_cmp(time_in, time_out) != 0) {
             eprintf("%dth times differ\n", i);
             eprintf("%d.%d vs %d.%d\n", time_in.sec, time_in.frac, time_out.sec, time_out.frac);
@@ -142,7 +143,7 @@ int main(int argc, char ** argv)
         }
 
         int length_in  = mpr_data_record_get_length(in[i]);
-        int length_out = mpr_data_record_get_length(out[i]);
+        int length_out = mpr_data_record_get_length(out);
         if (length_in != length_out) {
             eprintf("%dth lengths differ\n", i);
             eprintf("%d vs %d\n", length_in, length_out);
@@ -150,7 +151,7 @@ int main(int argc, char ** argv)
         }
 
         mpr_id id_in  = mpr_data_record_get_instance(in[i]);
-        mpr_id id_out = mpr_data_record_get_instance(out[i]);
+        mpr_id id_out = mpr_data_record_get_instance(out);
         if (id_in != id_out) {
             eprintf("%dth ids differ\n", i);
             eprintf("%d vs %d\n", id_in, id_out);
@@ -158,16 +159,13 @@ int main(int argc, char ** argv)
         }
 
         const void * value_in  = mpr_data_record_get_value(in[i]);
-        const void * value_out = mpr_data_record_get_value(out[i]);
+        const void * value_out = mpr_data_record_get_value(out);
         if (0 != memcmp(value_in, value_out, length_out * mpr_type_get_size(type_out))) {
             eprintf("%dth values differ\n", i);
             result = result || 1;
         }
     }
 
-    mpr_data_record_free(in[0]);
-    mpr_data_record_free(in[1]);
-    mpr_data_record_free(in[2]);
     mpr_dataset_free(data);
 
     printf("...................Test %s\x1B[0m.\n",

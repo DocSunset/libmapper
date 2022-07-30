@@ -1651,12 +1651,6 @@ static int handler_map(const char *path, const char *types, lo_arg **av, int ac,
     return 0;
 }
 
-void _find_data_map(mpr_data_map *map, mpr_data_sig *src, mpr_data_sig *dst,
-                    char * src_name, char * dst_name, char * src_sig_name, char * dst_sig_name)
-{
-    *src_sig_name = *dst_sig_name = '\0'; /* temporarily null terminate the signal names after the device name */
-}
-
 /* create a new data map record in the graph, including the involved devices and data signals if they are not already know.
  * It is assumed that if this is called, a map between these data signals must not already exist. */
 mpr_data_map_stage_data_map(mpr_data_sig src, mpr_data_sig dst, char * src_name, char *dst_name, const char * types, lo_arg **av, int ac)
@@ -1688,9 +1682,15 @@ static int handler_data_map(const char *path, const char *types, lo_arg **av, in
     src_sig_name = src_name = &av[0]->s; ++src_sig_name; while(*src_sig_name != '/') ++src_sig_name;
     dst_sig_name = dst_name = &av[1]->s; ++dst_sig_name; while(*dst_sig_name != '/') ++dst_sig_name;
 
-    mpr_data_map map;
+    mpr_data_map map = mpr_graph_get_data_map_by_name(gph, src_name, dst_name);
     mpr_data_sig src, dst;
-    _find_data_map(&map, &src, &dst, src_name, dst_name, src_sig_name, dst_sig_name);
+    if (map) {
+        src = map->src;
+        dst = map->dst;
+    } else {
+        src = mpr_graph_get_data_sig_by_name(gph, src_sig_name);
+        dst = mpr_graph_get_data_sig_by_name(gph, dst_sig_name);
+    }
 
     /* If the map already exists, merely update its properties
      * Elif received by the source, merely create the map
@@ -1700,9 +1700,11 @@ static int handler_data_map(const char *path, const char *types, lo_arg **av, in
     if (map) {
         _update_data_map(map, types, av, ac);
     } else if (src && src->is_local) {
-        _stage_data_map(src, dst, src_name, dst_name, types, av, ac);
+        map = _stage_data_map(src, dst, src_name, dst_name);
+        _update_data_map(map, types, av, ac);
     } else if (dst && dst->is_local) {
         map = _stage_data_map(src, dst, src_name, dst_name, types, av, ac);
+        _update_data_map(map, types, av, ac);
         _send_data_map_to(map);
     } else {
         *src_sig_name = *dst_sig_name = '\0'; /* temporarily null terminate the signal names after the device name */
