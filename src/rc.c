@@ -32,6 +32,11 @@ static inline mpr_rc _rc_from_lrc(mpr_lrc lrc)
     return (mpr_rc)&lrc->data;
 }
 
+void mpr_rc_no_destructor(mpr_rc data)
+{
+    return;
+}
+
 mpr_rc mpr_rc_new(size_t size, mpr_rc_data_destructor *destructor)
 {
     mpr_lrc lrc = calloc(1, size + _lrc_header_size());

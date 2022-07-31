@@ -568,7 +568,11 @@ typedef void mpr_data_sig_handler(mpr_data_sig dsig, mpr_dataset data, mpr_data_
 mpr_data_sig mpr_data_sig_new(mpr_dev parent, const char *name,
                               mpr_data_sig_handler *handler, int events);
 
-/*! Free the resources held by a data signal */
+/*! Free the resources held by a data signal.
+ *  The semantics of this function is a declaration that the signal is no longer needed by the user
+ *  and it should be removed from the network. It is thus only valid to pass a local data signal.
+ *  If a data signal from the network is passed here, the call is ignored, since the decision to
+ *  remove a signal from the network can only be made by the process that created the signal. */
 void mpr_data_sig_free(mpr_data_sig);
 
 /*! Get a list of datasets published by a signal.

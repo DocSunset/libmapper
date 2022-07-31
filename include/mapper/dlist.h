@@ -18,15 +18,22 @@ void mpr_dlist_no_destructor(void * data);
 /* The `mpr_dquery` API provides a lazily evaluated query API over `mpr_dlist`s. */
 
 /* Query callback function. Return non-zero to indicate a query match. */
-typedef int mpr_dquery_callback(size_t num_items, void **items);
+typedef int mpr_dlist_filter_predicate(void *datum, void **va);
 
 /* Lazily evaluate a new list by filtering an existing one.
- * When the query is constructed, `src` will be iterated over, passing its data to `cb`, until an
- * initial match is located. Subsequent calls to `mpr_dlist_next` or `mpr_dlist_pop` passing `query`
- * will repeat * this process until the end of `src` has been reached. If a copy or reference to the
- * front of the query list is maintained, the results of the query will be cached as a list
- * accessible from the front. */
-void mpr_dlist_filter(mpr_dlist *query, mpr_dlist src, mpr_dquery_callback *cb);
+ * When the query is constructed, `src` will be iterated over, passing its data to `cb` along with
+ * variadic arguments described by an OSC-like typespec string consisting only of mpr_types, until
+ * an initial match is located. Subsequent calls to `mpr_dlist_next` or `mpr_dlist_pop` passing the
+ * result will repeat this process until the end of `src` has been reached. If a reference
+ * to the front of the query list is maintained, the results of the query will be cached as a list
+ * accessible from the front. As usual, if a reference to the front is not kept, then iterating
+ * through the list will iteratively free the previous link. */
+mpr_dlist mpr_dlist_new_filter(mpr_dlist src, mpr_dlist_filter_predicate *cb, const char * types, ...);
+
+/* Non-lazily evaluate the whole filtered list.
+ * This will iterate over a filter so that the whole list is evaluated and cached as a linked
+ * list starting at `filter_front`. */
+void mpr_dlist_evaluate_filter(mpr_dlist filter_front);
 
 /* The `mpr_dlist` API provides a generic list cell */
 

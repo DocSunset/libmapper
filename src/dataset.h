@@ -11,7 +11,7 @@ typedef struct _mpr_data_record {
     int length;
     mpr_type type;
     mpr_time time;
-    const void * value;
+    void * value;
 } mpr_data_record_t, *mpr_data_record;
 
 typedef struct _mpr_dataset {
@@ -49,7 +49,7 @@ typedef struct _mpr_local_data_sig {
     mpr_local_dev dev;
     void *handler;
     int event_flags;
-    mpr_dlist maps;
+    mpr_dlist maps; /* list of mpr_local_data_maps where this signal is the source */
 } mpr_local_data_sig_t, *mpr_local_data_sig;
 
 #undef MPR_DATA_SIG_STRUCT_ITEMS
@@ -59,8 +59,7 @@ typedef struct _mpr_local_data_sig {
     mpr_data_sig src; \
     mpr_data_sig dst; \
     char is_local; \
-    int status; \
-    char is_local_only;
+    int status;
 
 typedef struct _mpr_data_map {
     MPR_DATA_MAP_STRUCT_ITEMS
@@ -68,7 +67,7 @@ typedef struct _mpr_data_map {
 
 typedef struct _mpr_local_data_map {
     MPR_DATA_MAP_STRUCT_ITEMS
-    /* something like mpr_link link; */
+    mpr_link link;
 } mpr_local_data_map_t, *mpr_local_data_map;
 
 #undef MPR_DATA_MAP_STRUCT_ITEMS
@@ -96,5 +95,18 @@ mpr_dataset mpr_dataset_copy(mpr_dataset data);
  * 'cmd' should be one of the `MPR_DATA_MAP_` messages defined in net_msg.h
  * An OSC message will be sent to the admin bus with a description of the map. */
 void mpr_data_map_send_state(mpr_data_map map, net_msg_t cmd);
+
+/* Push a data map onto the network, possibly initiating the mapping handshake/linking procedure */
+void mpr_data_map_push(mpr_data_map map);
+
+/* dlist filter predicates */
+int mpr_data_sigs_not_equal(void *datum, void **va);
+extern const char * mpr_data_sigs_not_equal_types;
+
+int mpr_data_sig_by_full_name(void *datum, void **va);
+extern const char * mpr_data_sig_by_full_name_types;
+
+int mpr_data_map_by_signals(void *datum, void **va);
+extern const char * mpr_data_map_by_signals_types;
 
 #endif

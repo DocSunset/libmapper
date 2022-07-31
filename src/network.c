@@ -91,13 +91,12 @@ const char* net_msg_strings[] =
     "/unmap",                   /* MSG_UNMAP */
     "/unmapped",                /* MSG_UNMAPPED */
     "/who",                     /* MSG_WHO */
+    "/data/signal/removed",     /* MSG_DATA_SIG_REM */
     "/data/signal",             /* MSG_DATA_SIG */
     "/data/map",                /* MSG_DATA_MAP */
-    "/data/mapTo",              /* MSG_DATA_MAP_TO */
-    "/data/mapped",             /* MSG_DATA_MAPPED */
-    "/data/map/modify",         /* MSG_DATA_MAP_MOD */
+    "/data/mapped",             /* MSG_DATA_MAP */
     "/data/unmap",              /* MSG_DATA_UNMAP */
-    "/data/unmapped",           /* MSG_DATA_UNMAPPED */
+    "/data/unmapped",           /* MSG_DATA_UNMAP */
 };
 
 #define HANDLER_ARGS const char*, const char*, lo_arg**, int, lo_message, void*
@@ -120,6 +119,10 @@ static int handler_sync(HANDLER_ARGS);
 static int handler_unmap(HANDLER_ARGS);
 static int handler_unmapped(HANDLER_ARGS);
 static int handler_who(HANDLER_ARGS);
+static int handler_data_sig(HANDLER_ARGS);
+static int handler_data_sig_removed(HANDLER_ARGS);
+static int handler_data_map(HANDLER_ARGS);
+static int handler_data_unmap(HANDLER_ARGS);
 
 static int _handler_name(HANDLER_ARGS);
 
@@ -138,6 +141,8 @@ static struct handler_method_assoc dev_handlers_generic[] = {
     {MSG_MAP_MOD,               NULL,       handler_map_mod},
     {MSG_PING,                  "hiid",     handler_ping},
     {MSG_UNMAP,                 NULL,       handler_unmap},
+    {MSG_DATA_MAP,              NULL,       handler_data_map},
+    {MSG_DATA_UNMAP,            NULL,       handler_data_unmap},
 };
 const int NUM_DEV_HANDLERS_GENERIC =
     sizeof(dev_handlers_generic)/sizeof(dev_handlers_generic[0]);
@@ -161,6 +166,10 @@ static struct handler_method_assoc graph_handlers[] = {
     {MSG_SYNC,                  NULL,       handler_sync},
     {MSG_UNMAPPED,              NULL,       handler_unmapped},
     {MSG_WHO,                   NULL,       handler_who},
+    {MSG_DATA_SIG,              NULL,       handler_data_sig},
+    {MSG_DATA_SIG_REM,          NULL,       handler_data_sig_removed},
+    {MSG_DATA_MAPPED,           NULL,       handler_data_map},
+    {MSG_DATA_UNMAPPED,         NULL,       handler_data_unmap},
 };
 const int NUM_GRAPH_HANDLERS =
     sizeof(graph_handlers)/sizeof(graph_handlers[0]);
@@ -1651,73 +1660,6 @@ static int handler_map(const char *path, const char *types, lo_arg **av, int ac,
     return 0;
 }
 
-/* create a new data map record in the graph, including the involved devices and data signals if they are not already know.
- * It is assumed that if this is called, a map between these data signals must not already exist. */
-mpr_data_map_stage_data_map(mpr_data_sig src, mpr_data_sig dst, char * src_name, char *dst_name, const char * types, lo_arg **av, int ac)
-{
-}
-
-void _send_data_map_to(mpr_data_map map)
-{
-}
-
-void _update_data_map(mpr_data_map map, const char * types, lo_arg **av, int ac)
-{
-}
-
-/*! When the /data/map message is received by the destination device, it responds
- *  by sending /data/mapTo on the admin bus. 
- *  The message should have the format `/data/map[To] full_src_name full_dst_name *props` */
-static int handler_data_map(const char *path, const char *types, lo_arg **av, int ac,
-                            lo_message msg, void * user)
-{
-    mpr_graph gph = (mpr_graph)user;
-    mpr_net net = &gph->net;
-    mpr_msg props;
-
-    RETURN_ARG_UNLESS(net->num_devs, 0);
-    RETURN_ARG_UNLESS(ac > 2, 0);
-    RETURN_ARG_UNLESS(types[0] == LO_STRING && types[1] == LO_STRING, 0);
-    char * src_name, * src_sig_name, * dst_name, * dst_sig_name;
-    src_sig_name = src_name = &av[0]->s; ++src_sig_name; while(*src_sig_name != '/') ++src_sig_name;
-    dst_sig_name = dst_name = &av[1]->s; ++dst_sig_name; while(*dst_sig_name != '/') ++dst_sig_name;
-
-    mpr_data_map map = mpr_graph_get_data_map_by_name(gph, src_name, dst_name);
-    mpr_data_sig src, dst;
-    if (map) {
-        src = map->src;
-        dst = map->dst;
-    } else {
-        src = mpr_graph_get_data_sig_by_name(gph, src_sig_name);
-        dst = mpr_graph_get_data_sig_by_name(gph, dst_sig_name);
-    }
-
-    /* If the map already exists, merely update its properties
-     * Elif received by the source, merely create the map
-     * Elif received by the destination, create the map and respond with /data/mapTo on the admin bus
-     * Elif received by a 3rd party to the map, create the map only if subscribed to either device in the map */
-
-    if (map) {
-        _update_data_map(map, types, av, ac);
-    } else if (src && src->is_local) {
-        map = _stage_data_map(src, dst, src_name, dst_name);
-        _update_data_map(map, types, av, ac);
-    } else if (dst && dst->is_local) {
-        map = _stage_data_map(src, dst, src_name, dst_name, types, av, ac);
-        _update_data_map(map, types, av, ac);
-        _send_data_map_to(map);
-    } else {
-        *src_sig_name = *dst_sig_name = '\0'; /* temporarily null terminate the signal names after the device name */
-        if (gph->autosub & MPR_DATA_MAP
-            || mpr_graph_subscribed_by_dev(gph, src_name)
-            || mpr_graph_subscribed_by_dev(gph, dst_name))
-            _stage_data_map(src, dst, src_name, dst_name, types, av, ac);
-        *src_sig_name = *dst_sig_name = '/';
-    }
-
-    return 0;
-}
-
 /*! When the /mapTo message is received by a peer device, create a tentative
  *  map and respond with own signal metadata. */
 static int handler_map_to(const char *path, const char *types, lo_arg **av,
@@ -2157,5 +2099,93 @@ static int handler_sync(const char *path, const char *types, lo_arg **av,
     }
     else
         trace_graph("ignoring sync from '%s' (autosubscribe = %d)\n", &av[0]->s, graph->autosub);
+    return 0;
+}
+
+void _send_data_map_to(mpr_data_map map)
+{
+}
+
+void _update_data_map(mpr_data_map map, const char * types, lo_arg **av, int ac)
+{
+}
+
+/*! When the /data/map message is received by the source device, it starts the link procedure.
+ *  The new data map will ultimately be established in `handler_dev` when the destination responds
+ *  to the `MSG_SUBSCRIBE` message that is issued by `mpr_link_init`, which is in turn called by
+ *  `mpr_graph_add_link`.
+ *  The message should have the format `/data/map[To] full_src_name full_dst_name *props` */
+static int handler_data_map(const char *path, const char *types, lo_arg **av, int ac,
+                            lo_message msg, void * user)
+{
+    mpr_graph gph = (mpr_graph)user;
+    mpr_net net = &gph->net;
+
+    RETURN_ARG_UNLESS(net->num_devs, 0);
+    RETURN_ARG_UNLESS(ac > 2, 0);
+    RETURN_ARG_UNLESS(types[0] == LO_STRING && types[1] == LO_STRING, 0);
+
+    char * src_name, * dst_name;
+    src_name = &av[0]->s;
+    dst_name = &av[1]->s;
+
+    mpr_data_sig src, dst;
+    src = mpr_graph_get_data_sig_by_full_name(gph, src_name);
+    dst = mpr_graph_get_data_sig_by_full_name(gph, dst_name);
+
+    int subscribe = 0;
+    if (src && src->is_local) subscribe = 1;
+    else {
+        char *src_sig_name, *dst_sig_name;
+        src_sig_name = (char *)skip_slash(src_name); while(*src_sig_name != '/') ++src_sig_name;
+        dst_sig_name = (char *)skip_slash(dst_name); while(*dst_sig_name != '/') ++dst_sig_name;
+        *src_sig_name = *dst_sig_name = '\0'; /* temporarily null terminate the signal names after the device name */
+        if (gph->autosub & MPR_DATA_MAP
+            || mpr_graph_subscribed_by_dev(gph, src_name)
+            || mpr_graph_subscribed_by_dev(gph, dst_name)) {
+            subscribe = 1;
+        }
+        *src_sig_name = *dst_sig_name = '/';
+    }
+
+    if (subscribe) {
+        if (!src) src = mpr_graph_add_data_sig_by_full_name(gph, src_name); /* may make device if needed */
+        if (!dst) dst = mpr_graph_add_data_sig_by_full_name(gph, dst_name);
+
+        mpr_dlist already_exists = mpr_dlist_new_filter(gph->dmaps, &mpr_data_map_by_signals, mpr_data_map_by_signals_types,
+                                                        src, dst);
+        mpr_data_map map = already_exists ? 
+                mpr_dlist_data_as(mpr_data_map, already_exists)
+                : mpr_data_map_new(src, dst);
+
+        _update_data_map(map, types, av, ac);
+
+        if (!already_exists) {
+            mpr_graph_add_link(gph, dst->dev, src->dev);
+
+            if (dst->is_local) _send_data_map_to(map);
+        }
+
+        mpr_dlist_free(already_exists);
+    }
+
+    return 0;
+}
+
+static int handler_data_unmap(const char *path, const char *types, lo_arg **av,
+                              int ac, lo_message msg, void *user)
+{
+    return 0;
+}
+
+static int handler_data_sig(const char *path, const char *types, lo_arg **av,
+                               int ac, lo_message msg, void *user)
+{
+    return 0;
+}
+
+static int handler_data_sig_removed(const char *path, const char *types, lo_arg **av,
+                               int ac, lo_message msg, void *user)
+{
     return 0;
 }

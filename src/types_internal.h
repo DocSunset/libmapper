@@ -14,6 +14,7 @@
  #endif
 #endif
 
+#include <mapper/dlist.h>
 #include <mapper/mapper_constants.h>
 
 #ifdef HAVE_INTTYPES_H
@@ -198,6 +199,8 @@ typedef struct _mpr_graph {
     mpr_list devs;                  /*!< List of devices. */
     mpr_list sigs;                  /*!< List of signals. */
     mpr_list maps;                  /*!< List of maps. */
+    mpr_dlist dsigs;                /*!< List of data signals. */
+    mpr_dlist dmaps;                /*!< List of data maps. */
     mpr_list links;                 /*!< List of links. */
     fptr_list callbacks;            /*!< List of object record callbacks. */
 

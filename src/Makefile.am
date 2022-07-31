@@ -2,6 +2,10 @@
 noinst_HEADERS = mapper_internal.h \
     array.h \
     dataset.h \
+    device.h \
+    network.h \
+    graph.h \
+    object.h \
     util/debug_macro.h \
     util/mpr_type_get_size.h \
     util/skip_slash.h \

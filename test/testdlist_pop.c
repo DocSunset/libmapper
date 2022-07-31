@@ -93,7 +93,7 @@ int confirm_contents(mpr_dlist list, size_t i)
 
 int confirm_refcount(mpr_dlist list, size_t expected)
 {
-    if (mpr_rc_refcount(list) != expected) {
+    if (mpr_dlist_refcount(list) != expected) {
         eprintf("Actual refcount %lu does not match expected value %lu.\n"
                 , mpr_rc_refcount(list)
                 , expected

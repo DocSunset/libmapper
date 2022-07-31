@@ -290,3 +290,13 @@ int mpr_dlist_equals(mpr_dlist a, mpr_dlist b)
              && ( a->data == b->data )
              );
 }
+
+mpr_dlist mpr_dlist_new_filter(mpr_dlist src, mpr_dlist_filter_predicate *cb, const char * types, ...)
+{
+    return 0;
+}
+
+void mpr_dlist_evaluate_filter(mpr_dlist filter_front)
+{
+    return;
+}

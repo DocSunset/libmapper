@@ -617,17 +617,21 @@ mpr_data_map mpr_graph_get_data_map_by_name(mpr_graph g, const char * src, const
     return 0;
 }
 
-mpr_data_sig mpr_graph_get_data_sig_by_name(mpr_graph g, const char * name)
+mpr_data_sig mpr_graph_get_data_sig_by_full_name(mpr_graph g, const char * name)
 {
-    /* DATATODO: implement get data sig by name
-    const char *no_slash = skip_slash(name);
-    mpr_dlist sigs = 0;
-    for (mpr_dlist_make_ref(&sigs, g->dsigs); sigs; mpr_dlist_next(&sigs)) {
-        if (0 != strcmp(mpr_dlist_data_as(mpr_data_sig, sigs)->name, dev->name)) continue;
-        mpr_rc_make_ref(ret, mpr_dlist_data(sig));
+    mpr_dlist sig = mpr_dlist_new_filter(g->dsigs, &mpr_data_sig_by_full_name, mpr_data_sig_by_full_name_types, name);
+    if (sig) {
+        mpr_data_sig ret = mpr_dlist_data_as(mpr_data_sig, sig);
+        mpr_dlist_free(sig);
+        return ret;
     }
     return 0;
-    */
+}
+
+mpr_data_sig mpr_graph_add_data_sig_by_full_name(mpr_graph g, const char * name)
+{
+    /* DATATODO: implement this */
+    return 0;
 }
 
 mpr_map mpr_graph_add_map(mpr_graph g, mpr_id id, int num_src, const char **src_names,
@@ -1123,4 +1127,42 @@ const char *mpr_graph_get_address(mpr_graph g)
     if (!g->net.addr.url)
         g->net.addr.url = lo_address_get_url(g->net.addr.bus);
     return g->net.addr.url;
+}
+
+void mpr_graph_remove_data_sig(mpr_graph g, mpr_data_sig sig, mpr_graph_evt e)
+{
+    /* replace g->dsigs with a filtered version not including sig */
+    mpr_dlist filtered = mpr_dlist_new_filter(g->dsigs, &mpr_data_sigs_not_equal, mpr_data_sigs_not_equal_types, 
+                                              mpr_rc_make_ref((mpr_rc)sig));
+    mpr_dlist_move(&g->dsigs, &filtered);
+    mpr_dlist_evaluate_filter(g->dsigs);
+
+    mpr_graph_call_cbs(g, (mpr_obj)sig, MPR_DATA_SIG, e);
+
+    /* DATATODO: remove maps using the signal */
+
+    if (sig->is_local) {
+        mpr_local_data_sig lsig = (mpr_local_data_sig)sig;
+        mpr_local_dev ldev = lsig->dev;
+        mpr_dev_del_data_sig_methods(ldev, lsig);
+
+        /* DATATODO: release network routers and remove traces of sig from sig->obj.graph->net */
+
+        if (ldev->registered) {
+            /* Notify subscribers */
+            /* DATATODO: something analogous to this:
+            int dir = (sig->dir == MPR_DIR_IN) ? MPR_SIG_IN : MPR_SIG_OUT;
+            mpr_net_use_subscribers(net, ldev, dir);
+            mpr_sig_send_removed(lsig);
+            */
+        }
+    }
+
+    #if DEBUG
+        if (mpr_rc_refcount((mpr_rc)sig) != 1) trace("mpr_data_sig with > 1 refcount in mpr_graph_remove_data_sig\n");
+    #endif
+    /* based on the above invariant, sig should be the last ref to itself. This may not be the case if the user accidentally
+     * kept a reference to the signal, e.g. forgot to free a list
+     * Calling mpr_rc_free should cause the signal's destructor to be invoked. */
+    mpr_rc_free((mpr_rc)sig); 
 }

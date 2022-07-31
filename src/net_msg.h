@@ -22,13 +22,14 @@ typedef enum {
     MSG_UNMAPPED,
     MSG_WHO,
     MSG_DATA_SIG,
+    MSG_DATA_SIG_REM,
     MSG_DATA_MAP,
-    MSG_DATA_MAP_TO,
     MSG_DATA_MAPPED,
-    MSG_DATA_MAP_MOD,
     MSG_DATA_UNMAP,
     MSG_DATA_UNMAPPED,
     NUM_MSG_STRINGS
 } net_msg_t;
+
+extern const char* net_msg_strings[NUM_MSG_STRINGS]; /* defined in network.c */
 
 #endif // NET_MSG_H_INCLUDED

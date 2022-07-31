@@ -3,7 +3,6 @@
 #define __MAPPER_INTERNAL_H__
 
 #include "types_internal.h"
-#include <mapper/mapper.h>
 #include "util/mpr_inline.h"
 #include <string.h>
 
@@ -25,35 +24,13 @@ void print_subscription_flags(int flags);
 #endif
 
 /**** Objects ****/
-void mpr_obj_increment_version(mpr_obj obj);
+#include "object.h"
 
 #define MPR_LINK 0x20
 
 /**** Networking ****/
 
-void mpr_net_add_dev(mpr_net n, mpr_local_dev d);
-
-void mpr_net_remove_dev(mpr_net n, mpr_local_dev d);
-
-void mpr_net_poll(mpr_net n);
-
-void mpr_net_init(mpr_net n, const char *iface, const char *group, int port);
-
-void mpr_net_use_bus(mpr_net n);
-
-void mpr_net_use_mesh(mpr_net n, lo_address addr);
-
-void mpr_net_use_subscribers(mpr_net net, mpr_local_dev dev, int type);
-
-void mpr_net_add_msg(mpr_net n, const char *str, net_msg_t cmd, lo_message msg);
-
-void mpr_net_handle_map(mpr_net net, mpr_local_map map, mpr_msg props);
-
-void mpr_net_send(mpr_net n);
-
-void mpr_net_free_msgs(mpr_net n);
-
-void mpr_net_free(mpr_net n);
+#include "network.h"
 
 #define NEW_LO_MSG(VARNAME, FAIL)                   \
 lo_message VARNAME = lo_message_new();              \
@@ -62,107 +39,9 @@ if (!VARNAME) {                                     \
     FAIL;                                           \
 }
 
-/***** Devices *****/
+#include "device.h"
 
-int mpr_dev_set_from_msg(mpr_dev dev, mpr_msg msg);
-
-void mpr_dev_manage_subscriber(mpr_local_dev dev, lo_address address, int flags,
-                               int timeout_seconds, int revision);
-
-/*! Return the list of inter-device links associated with a given device.
- *  \param dev          Device record query.
- *  \param dir          The direction of the link relative to the given device.
- *  \return             The list of results.  Use mpr_list_next() to iterate. */
-mpr_list mpr_dev_get_links(mpr_dev dev, mpr_dir dir);
-
-mpr_list mpr_dev_get_maps(mpr_dev dev, mpr_dir dir);
-
-/*! Find information for a registered signal.
- *  \param dev          The device to query.
- *  \param sig_name     Name of the signal to find in the graph.
- *  \return             Information about the signal, or zero if not found. */
-mpr_sig mpr_dev_get_sig_by_name(mpr_dev dev, const char *sig_name);
-
-mpr_id mpr_dev_get_unused_sig_id(mpr_local_dev dev);
-
-int mpr_dev_add_link(mpr_dev dev, mpr_dev rem);
-void mpr_dev_remove_link(mpr_dev dev, mpr_dev rem);
-
-int mpr_dev_handler(const char *path, const char *types, lo_arg **argv, int argc,
-                    lo_message msg, void *data);
-
-int mpr_dev_bundle_start(lo_timetag t, void *data);
-
-MPR_INLINE static void mpr_dev_LID_incref(mpr_local_dev dev, mpr_id_map map)
-{
-    ++map->LID_refcount;
-}
-
-MPR_INLINE static void mpr_dev_GID_incref(mpr_local_dev dev, mpr_id_map map)
-{
-    ++map->GID_refcount;
-}
-
-int mpr_dev_LID_decref(mpr_local_dev dev, int group, mpr_id_map map);
-
-int mpr_dev_GID_decref(mpr_local_dev dev, int group, mpr_id_map map);
-
-void init_dev_prop_tbl(mpr_dev dev);
-
-void mpr_dev_on_registered(mpr_local_dev dev);
-
-void mpr_dev_add_sig_methods(mpr_local_dev dev, mpr_local_sig sig);
-
-void mpr_dev_remove_sig_methods(mpr_local_dev dev, mpr_local_sig sig);
-
-mpr_id_map mpr_dev_add_idmap(mpr_local_dev dev, int group, mpr_id LID, mpr_id GID);
-
-mpr_id_map mpr_dev_get_idmap_by_LID(mpr_local_dev dev, int group, mpr_id LID);
-
-mpr_id_map mpr_dev_get_idmap_by_GID(mpr_local_dev dev, int group, mpr_id GID);
-
-const char *mpr_dev_get_name(mpr_dev dev);
-
-void mpr_dev_send_state(mpr_dev dev, net_msg_t cmd);
-
-int mpr_dev_send_maps(mpr_local_dev dev, mpr_dir dir, int msg);
-
-/*! Find information for a registered link.
- *  \param dev          Device record to query.
- *  \param remote       Remote device.
- *  \return             Information about the link, or zero if not found. */
-mpr_link mpr_dev_get_link_by_remote(mpr_local_dev dev, mpr_dev remote);
-
-/*! Look up information for a registered object using its unique id.
- *  \param g            The graph to query.
- *  \param type         The type of object to return.
- *  \param id           Unique id identifying the object to find in the graph.
- *  \return             Information about the object, or zero if not found. */
-mpr_obj mpr_graph_get_obj(mpr_graph g, mpr_type type, mpr_id id);
-
-/*! Find information for a registered device.
- *  \param g            The graph to query.
- *  \param name         Name of the device to find in the graph.
- *  \return             Information about the device, or zero if not found. */
-mpr_dev mpr_graph_get_dev_by_name(mpr_graph g, const char *name);
-
-/*! Find a data map by the names of its source and destination signals. */
-mpr_data_map mpr_graph_get_data_map_by_name(mpr_graph g, const char * src, const char * dst);
-
-mpr_data_sig mpr_graph_get_data_sig_by_name(mpr_graph g, const char * name);
-
-mpr_map mpr_graph_get_map_by_names(mpr_graph g, int num_src, const char **srcs, const char *dst);
-
-/*! Call registered graph callbacks for a given object type.
- *  \param g            The graph to query.
- *  \param o            The object to pass to the callbacks.
- *  \param t            The object type.
- *  \param e            The graph event type. */
-void mpr_graph_call_cbs(mpr_graph g, mpr_obj o, mpr_type t, mpr_graph_evt e);
-
-void mpr_graph_cleanup(mpr_graph g);
-
-void mpr_graph_housekeeping(mpr_graph g);
+#include "graph.h"
 
 /***** Router *****/
 
@@ -271,8 +150,6 @@ void mpr_link_free(mpr_link link);
 int mpr_link_process_bundles(mpr_link link, mpr_time t, int idx);
 void mpr_link_add_msg(mpr_link link, mpr_sig dst, lo_message msg, mpr_time t, mpr_proto proto, int idx);
 
-mpr_link mpr_graph_add_link(mpr_graph g, mpr_dev dev1, mpr_dev dev2);
-
 int mpr_link_get_is_local(mpr_link link);
 
 /**** Maps ****/
@@ -326,53 +203,6 @@ void mpr_slot_print(mpr_slot slot, int is_dest);
 int mpr_slot_match_full_name(mpr_slot slot, const char *full_name);
 
 void mpr_slot_remove_inst(mpr_local_slot slot, int idx);
-
-/**** Graph ****/
-
-/*! Add or update a device entry in the graph using parsed message parameters.
- *  \param g            The graph to operate on.
- *  \param dev_name     The name of the device.
- *  \param msg          The parsed message parameters containing new metadata.
- *  \return             Pointer to the device. */
-mpr_dev mpr_graph_add_dev(mpr_graph g, const char *dev_name, mpr_msg msg);
-
-/*! Add or update a signal entry in the graph using parsed message parameters.
- *  \param g            The graph to operate on.
- *  \param sig_name     The name of the signal.
- *  \param dev_name     The name of the device associated with this signal.
- *  \param msg          The parsed message parameters containing new metadata.
- *  \return             Pointer to the signal. */
-mpr_sig mpr_graph_add_sig(mpr_graph g, const char *sig_name,
-                          const char *dev_name, mpr_msg msg);
-
-/*! Add or update a map entry in the graph using parsed message parameters.
- *  \param g            The graph to operate on.
- *  \param num_src      The number of source slots for this map
- *  \param src_names    The full names of the source signals.
- *  \param dst_name     The full name of the destination signal.
- *  \return             Pointer to the map. */
-mpr_map mpr_graph_add_map(mpr_graph g, mpr_id id, int num_src, const char **src_names,
-                          const char *dst_name);
-
-/*! Remove a device from the graph. */
-void mpr_graph_remove_dev(mpr_graph g, mpr_dev dev, mpr_graph_evt evt, int quiet);
-
-/*! Remove a signal from the graph. */
-void mpr_graph_remove_sig(mpr_graph g, mpr_sig sig, mpr_graph_evt evt);
-
-/*! Remove a link from the graph. */
-void mpr_graph_remove_link(mpr_graph g, mpr_link link, mpr_graph_evt evt);
-
-/*! Remove a map from the graph. */
-void mpr_graph_remove_map(mpr_graph g, mpr_map map, mpr_graph_evt evt);
-
-/*! Print graph contents to the screen.  Useful for debugging, only works when
- *  compiled in debug mode. */
-void mpr_graph_print(mpr_graph g);
-
-int mpr_graph_subscribed_by_dev(mpr_graph g, const char *name);
-
-int mpr_graph_subscribed_by_sig(mpr_graph g, const char *name);
 
 /**** Messages ****/
 /*! Parse the device and signal names from an OSC path. */
@@ -628,5 +458,7 @@ MPR_INLINE static void clear_bitflags(char *bytearray, int num_flags)
 {
     memset(bytearray, 0, num_flags / 8 + 1);
 }
+
+#include <mapper/mapper.h>
 
 #endif /* __MAPPER_INTERNAL_H__ */

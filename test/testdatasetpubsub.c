@@ -146,6 +146,12 @@ int main(int argc, char ** argv)
     mpr_dataset_free(data);
 
     int fail;
+    eprintf("Insert: %s\nRemove: %s\nLength: %s\nValue:  %s\n"
+           , got_dataset_insert ? "yes" : "no"
+           , got_dataset_remove ? "yes" : "no"
+           , dataset_length_matches ? "yes" : "no"
+           , dataset_value_matches ? "yes" : "no"
+           );
     if (got_dataset_insert && got_dataset_remove && dataset_length_matches && dataset_value_matches) fail = 0;
     else fail = 1;
 

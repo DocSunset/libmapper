@@ -3,13 +3,37 @@
 #include <string.h>
 
 #include "dataset.h"
+#include "object.h"
 #include "table.h"
+#include "device.h"
+#include "network.h"
+#include "graph.h"
 #include "util/func_if.h"
 #include "util/mpr_type_get_size.h"
 #include "util/debug_macro.h"
 #include "util/skip_slash.h"
 #include <mapper/rc.h>
 #include <mapper/mapper.h>
+
+const char * mpr_data_sigs_not_equal_types = "v";
+const char * mpr_data_sig_by_full_name_types = "s";
+const char * mpr_data_map_by_signals_types = "vv";
+
+/* dlist filter predicates */
+int mpr_data_sigs_not_equal(void *datum, void **va)
+{
+    return 1;
+}
+
+int mpr_data_sig_by_full_name(void *datum, void **va)
+{
+    return 1;
+}
+
+int mpr_data_map_by_signals(void *datum, void **va)
+{
+    return 1;
+}
 
 /* Data records */
 
@@ -39,9 +63,10 @@ mpr_data_record mpr_data_record_new(mpr_sig sig, mpr_sig_evt evt, mpr_id instanc
     return record;
 }
 
-void mpr_data_record_free(mpr_data_record record)
+/* this should be strictly an alias to mpr_rc_free */
+void mpr_data_record_free(mpr_data_record data)
 {
-    mpr_rc_free((mpr_rc)record);
+    mpr_rc_free((mpr_rc)data);
 }
 
 mpr_sig      mpr_data_record_get_sig     (const mpr_data_record record) { return record->sig; }
@@ -52,12 +77,19 @@ mpr_type     mpr_data_record_get_type    (const mpr_data_record record) { return
 const void * mpr_data_record_get_value   (const mpr_data_record record) { return record->value; }
 mpr_time     mpr_data_record_get_time    (const mpr_data_record record) { return record->time; }
 
+void mpr_dataset_destructor(mpr_rc rc)
+{
+    mpr_dataset data = (mpr_dataset)rc;
+    mpr_dlist_free(data->recs.back);
+    mpr_dlist_free(data->recs.front);
+    mpr_dlist_free(data->sigs);
+    free((void*)data->name);
+}
+
 mpr_dataset mpr_dataset_new(const char * name, mpr_data_sig parent)
 {
     RETURN_ARG_UNLESS(name, 0);
-    /* DATATODO: the dataset should be allocated by the graph, and graphs should have a list of datasets:
-     * data = (mpr_dataset)mpr_list_add_item((void**)&g->datasets, sizeof(mpr_dataset)); */
-    mpr_dataset data = calloc(1, sizeof(mpr_dataset_t));
+    mpr_dataset data = (mpr_dataset)mpr_rc_new(sizeof(mpr_dataset_t), &mpr_dataset_destructor);
 
     data->name = strdup(name);
     die_unless(data->name, "Failed to malloc new dataset `%s` name string\n", name);
@@ -75,21 +107,17 @@ const char * mpr_dataset_get_name(mpr_dataset data)
     return data->name;
 }
 
+/* this strictly must be an alias of mpr_rc_free */
 void mpr_dataset_free(mpr_dataset data)
 {
-    RETURN_UNLESS(data);
-    mpr_dlist_free(data->recs.back);
-    mpr_dlist_free(data->recs.front);
-    mpr_dlist_free(data->sigs);
-    free((void*)data->name);
-    free(data);
+    mpr_rc_free((mpr_rc)data);
 }
 
 void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 {
     RETURN_UNLESS(data);
     /* copy record metadata */
-    mpr_dlist_append(&data->recs.front, &data->recs.back, (void*)record, &mpr_data_record_free);
+    mpr_dlist_append(&data->recs.front, &data->recs.back, (void*)record, &mpr_rc_free);
 
     mpr_sig rec_sig = record->sig;
     mpr_dlist iter;
@@ -121,7 +149,7 @@ mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
 
 mpr_dlist mpr_dataset_get_records(mpr_dataset data)
 {
-    RETURN_UNLESS(data);
+    RETURN_ARG_UNLESS(data, 0);
     return mpr_dlist_make_ref(data->recs.front);
 }
 
@@ -133,10 +161,11 @@ unsigned int mpr_dataset_get_num_records(mpr_dataset data)
 
 mpr_dlist mpr_dataset_get_sigs(mpr_dataset data)
 {
-    RETURN_UNLESS(data);
+    RETURN_ARG_UNLESS(data, 0);
     return mpr_dlist_make_ref(data->sigs);
 }
 
+/* DATATODO: implement publish methods */
 mpr_data_sig mpr_dataset_publish(mpr_dataset data, mpr_dev dev, const char * name,
                          mpr_data_sig_handler handler, int events)
 {
@@ -276,7 +305,7 @@ static inline void _maybe_add_recording(mpr_data_recorder rec)
         /* set the dataset's list to the bounds of the recorder's data buffer */
         data->recs.front = mpr_dlist_make_ref(rec->data->recs.front);
         data->recs.back  = mpr_dlist_make_ref(rec->data->recs.back);
-        mpr_dlist_prepend(&rec->recordings, (void*)data, &mpr_dataset_free);
+        mpr_dlist_prepend(&rec->recordings, (void*)data, &mpr_rc_free);
     }
 }
 
@@ -319,49 +348,11 @@ void mpr_data_recorder_arm(mpr_data_recorder rec)
 
 mpr_dlist mpr_data_recorder_get_recordings(mpr_data_recorder rec)
 {
-    RETURN_UNLESS(rec);
+    RETURN_ARG_UNLESS(rec, 0);
     return mpr_dlist_make_ref(rec->recordings);
 }
 
 /* Dataset signals */
-
-mpr_data_sig mpr_data_sig_new(mpr_dev dev, const char *name,
-                              mpr_data_sig_handler *handler, int events)
-{
-    mpr_local_data_sig lsig;
-    RETURN_ARG_UNLESS(dev && name, 0);
-
-    /* DATATODO: check if a data signal with this name already exists and return it if so */
-
-    mpr_graph g = mpr_obj_get_graph((mpr_obj)dev);
-
-    /* DATATODO: add this data signal to the graph's list of data signals instead of callocing it */
-    lsig = calloc(1, sizeof(mpr_local_data_sig_t));
-
-    lsig->dev = (mpr_local_dev)dev;
-    lsig->obj.id = mpr_dev_get_unused_sig_id((mpr_local_dev)dev);
-    lsig->obj.graph = g;
-    lsig->handler = handler;
-    lsig->event_flags = events;
-    lsig->is_local = 1;
-
-    mpr_data_sig_init(lsig, name);
-
-    mpr_obj_increment_version((mpr_obj)dev); /* DATATODO: what does this do? */
-
-    mpr_dev_add_data_sig_methods(lsig->dev, lsig);
-
-    /* DATATODO: if the device is already registered, tell subscribers about the dataset lsig */
-    /*
-    if (((mpr_local_dev)dev)->registered) {
-        mpr_net_use_subscribers(&g->net, (mpr_local_dev)dev,
-                                ((dir == MPR_DIR_IN) ? MPR_SIG_IN : MPR_SIG_OUT));
-        mpr_sig_send_state((mpr_sig)lsig, MSG_SIG);
-    }
-    */
-
-    return (mpr_data_sig)lsig;
-}
 
 void mpr_data_sig_init(mpr_data_sig sig, const char *name)
 {
@@ -386,33 +377,10 @@ void mpr_data_sig_init(mpr_data_sig sig, const char *name)
     }
 }
 
-void mpr_data_sig_free(mpr_data_sig sig)
+/* Free a data signal's memory resources */
+void mpr_data_sig_destructor(mpr_rc rc)
 {
-    RETURN_UNLESS(sig && sig->is_local);
-    mpr_local_data_sig lsig = (mpr_local_data_sig)sig;
-    mpr_local_dev ldev = lsig->dev;
-
-    mpr_dev_del_data_sig_methods((mpr_local_dev)sig->dev, lsig);
-
-    /* DATATODO: release local maps and network routers and remove traces of sig from sig->obj.graph->net */
-
-    if (ldev->registered) {
-        /* Notify subscribers */
-        /* DATATODO: something analogous to this:
-        int dir = (sig->dir == MPR_DIR_IN) ? MPR_SIG_IN : MPR_SIG_OUT;
-        mpr_net_use_subscribers(net, ldev, dir);
-        mpr_sig_send_removed(lsig);
-        */
-    }
-    /* DATATODO: remove signal from the graph, analogous to this:
-    mpr_graph_remove_sig(sig->obj.graph, sig, MPR_OBJ_REM);
-    // the above should call mpr_data_sig_free_internal(sig);
-    */
-}
-
-void mpr_data_sig_free_internal(mpr_data_sig sig)
-{
-    RETURN_UNLESS(sig);
+    mpr_data_sig sig = (mpr_data_sig)rc;
     free(sig->path);
     mpr_dlist_free(sig->pubs);
     mpr_dlist_free(sig->subs);
@@ -420,6 +388,69 @@ void mpr_data_sig_free_internal(mpr_data_sig sig)
     FUNC_IF(mpr_tbl_free, sig->obj.props.staged);
     /* DATATODO: what is the purpose of increment version? */
     mpr_obj_increment_version((mpr_obj)sig);
+    if (sig->is_local) {
+        mpr_local_data_sig lsig = (mpr_local_data_sig)sig;
+        mpr_dlist_free(lsig->maps);
+    }
+}
+
+
+mpr_data_sig mpr_data_sig_new(mpr_dev dev, const char *name,
+                              mpr_data_sig_handler *handler, int events)
+{
+    mpr_local_data_sig lsig;
+    RETURN_ARG_UNLESS(dev && name, 0);
+    mpr_graph g = mpr_obj_get_graph((mpr_obj)dev);
+
+    const char * full_name; /* DATATODO: malloc and snprintf the full name, and then free. */
+
+    mpr_dlist already_exists = mpr_dlist_new_filter(g->dsigs, &mpr_data_sig_by_full_name, mpr_data_sig_by_full_name_types,
+                                                    full_name);
+    if (already_exists) {
+        mpr_data_sig ret = mpr_dlist_data_as(mpr_data_sig, already_exists);
+        mpr_dlist_free(already_exists);
+        return ret;
+    }
+
+    lsig = mpr_rc_new(sizeof(mpr_local_data_sig_t), &mpr_data_sig_destructor);
+    mpr_dlist_prepend(&g->dsigs, lsig, &mpr_rc_free);
+
+    lsig->dev = (mpr_local_dev)dev;
+    lsig->obj.id = mpr_dev_get_unused_sig_id((mpr_local_dev)dev);
+    lsig->obj.graph = g;
+    lsig->handler = handler;
+    lsig->event_flags = events;
+    lsig->is_local = 1;
+
+    mpr_data_sig_init((mpr_data_sig)lsig, name);
+
+    mpr_obj_increment_version((mpr_obj)dev); /* DATATODO: what does this do? */
+
+    mpr_dev_add_data_sig_methods(lsig->dev, lsig);
+
+    /* DATATODO: if the device is already registered, tell subscribers about the dataset lsig */
+    /*
+    if (((mpr_local_dev)dev)->registered) {
+        mpr_net_use_subscribers(&g->net, (mpr_local_dev)dev,
+                                ((dir == MPR_DIR_IN) ? MPR_SIG_IN : MPR_SIG_OUT));
+        mpr_sig_send_state((mpr_sig)lsig, MSG_SIG);
+    }
+    */
+
+    return (mpr_data_sig)lsig;
+}
+
+/* DATATODO: 
+ * void mpr_data_sig_send_state(mpr_data_sig sig, mpr_msg cmd)
+ * {
+ * }
+ */ 
+
+void mpr_data_sig_free(mpr_data_sig sig)
+{
+    RETURN_UNLESS(sig && sig->is_local);
+    mpr_graph g = mpr_obj_get_graph((mpr_obj)sig);
+    mpr_graph_remove_data_sig(g, sig, MPR_OBJ_REM);
 }
 
 mpr_dlist mpr_data_sig_get_pubs(mpr_data_sig sig)
@@ -448,59 +479,6 @@ void mpr_data_sig_set_cb(mpr_data_sig sig, mpr_data_sig_handler* h, int events)
 
 /* Dataset mappings */
 
-mpr_data_map mpr_data_map_new(mpr_data_sig src, mpr_data_sig dst)
-{
-    RETURN_ARG_UNLESS(src && dst, 0);
-
-    /* DATATODO: check if this map already exists */
-
-    /* If the signals are both local:
-         * if they are the same signal, they will be pointers to the same location, we can't map this
-         * if they are not the same signal, we can map them immediately
-     * else, if one of the signals is remote:
-         * if the local signal is uninitialized, stage the map to be completed when the local dev is registered
-         * else we can make the map
-     * else, if both signals are remote:
-         * we know they must both be initialized, since we wouldn't know about them otherwise
-         * if the signals are the same (they have the same dev name and sig name), we can't make this map
-         * else we can make the map */
-    if (src->is_local && dst->is_local && src == dst) {
-        trace("Cannot connect signal '%s:%s' to itself.\n"
-              mpr_dev_get_name(src->dev), src->name);
-        return 0;
-    }
-    else if (src->is_local || dst->is_local) {
-        mpr_local_data_sig lsig = src->is_local ? src : dst;
-        if (!mpr_dev_get_is_ready((mpr_dev)lsig->dev)) {
-            /* DATATODO: stage the map for when the local device is ready */
-            /* it may be enough to just continue on, and eventually push the map when the device is registered... */
-            return 0;
-        }
-    }
-    else if (strcmp(src->name, dst->name) == 0 && strcmp(src->dev->name, dst->dev->name) == 0) {
-        trace("Cannot connect signal '%s:%s' to itself.\n",
-              mpr_dev_get_name(src[i]->dev), src[i]->name);
-        return 0;
-    }
-
-    mpr_data_map m;
-    /* DATATODO: maps should be added to the graph's list */
-    if (src->is_local) {
-        m = calloc(1, sizeof(mpr_local_data_map_t));
-        m->is_local = 1;
-    }
-    else m = calloc(1, sizeof(mpr_data_map_t));
-    m->obj.type = MPR_DATA_MAP;
-    m->obj.graph = src->obj.graph;
-    m->obj.id = mpr_dev_generate_unique_id(src->dev);
-    m->src = src;
-    m->dst = dst;
-    mpr_data_map_init(m);
-    /* DATATODO: increment graph count of staged data maps so that they will be pushed automatically on poll */
-    /* DATATODO: check if dst is local, and if so immediately set up the map */
-    return m;
-}
-
 void mpr_data_map_init(mpr_data_map m)
 {
     mpr_tbl t = m->obj.props.synced = mpr_tbl_new();
@@ -516,6 +494,88 @@ void mpr_data_map_init(mpr_data_map m)
     mpr_tbl_set(t, MPR_PROP_IS_LOCAL, NULL, 1, MPR_BOOL, &m->is_local,
                 LOCAL_ACCESS_ONLY | NON_MODIFIABLE);
     m->status = MPR_STATUS_STAGED;
+}
+
+mpr_data_map mpr_data_map_new(mpr_data_sig src, mpr_data_sig dst)
+{
+    RETURN_ARG_UNLESS(src && dst, 0);
+
+    mpr_dlist already_exists = mpr_dlist_new_filter(src->obj.graph->dmaps,
+                                                    &mpr_data_map_by_signals, mpr_data_map_by_signals_types,
+                                                    src, dst);
+    if (already_exists) {
+        mpr_data_map ret = mpr_dlist_data_as(mpr_data_map, already_exists);
+        mpr_dlist_free(already_exists);
+        return ret;
+    }
+
+    /* If the signals are both local:
+         * if they are the same signal, they will be pointers to the same location, we can't map this
+         * if they are not the same signal, we can map them immediately
+     * else, if one of the signals is remote:
+         * if the local signal is uninitialized, stage the map to be completed when the local dev is registered
+         * else we can make the map
+     * else, if both signals are remote:
+         * we know they must both be initialized, since we wouldn't know about them otherwise
+         * if the signals are the same (they have the same dev name and sig name), we can't make this map
+         * else we can make the map */
+    if (src->is_local && dst->is_local) {
+        if (src == dst) {
+            trace("Cannot connect signal '%s:%s' to itself.\n"
+                  mpr_dev_get_name(src->dev), src->name);
+            return 0;
+        }
+        /* DATATODO: else immediately establish local-only link */
+    }
+    else if (src->is_local || dst->is_local) {
+        mpr_local_data_sig lsig = src->is_local ? (mpr_local_data_sig)src : (mpr_local_data_sig)dst;
+        if (!mpr_dev_get_is_ready((mpr_dev)lsig->dev)) {
+            /* DATATODO: stage the map for when the local device is ready */
+            /* it may be enough to just continue on, and eventually push the map when the device is registered... */
+            return 0;
+        }
+    }
+    else if (strcmp(src->name, dst->name) == 0 && strcmp(src->dev->name, dst->dev->name) == 0) {
+        trace("Cannot connect signal '%s:%s' to itself.\n",
+              mpr_dev_get_name(src[i]->dev), src[i]->name);
+        return 0;
+    }
+
+    mpr_data_map m;
+    if (src->is_local) {
+        m = mpr_rc_new(sizeof(mpr_local_data_map_t), &mpr_rc_no_destructor); /* map has no memory resources to free */
+        m->is_local = 1;
+    }
+    else m = mpr_rc_new(sizeof(mpr_data_map_t), &mpr_rc_no_destructor);
+
+    mpr_graph g = mpr_obj_get_graph((mpr_obj)src);
+    mpr_dlist_prepend(&g->dmaps, m, &mpr_rc_free);
+
+    m->obj.type = MPR_DATA_MAP;
+    m->obj.graph = src->obj.graph;
+    m->obj.id = mpr_dev_generate_unique_id(src->dev);
+    m->src = src;
+    m->dst = dst;
+    mpr_data_map_init(m);
+    /* DATATODO: increment graph count of staged data maps so that they will be pushed automatically on poll */
+    return m;
+}
+
+void mpr_data_map_push(mpr_data_map m)
+{
+    mpr_net n = &m->obj.graph->net;
+    mpr_data_sig src = m->src;
+    mpr_data_sig dst = m->dst;
+    RETURN_UNLESS(mpr_dev_get_is_ready(src->dev) && mpr_dev_get_is_ready(dst->dev));
+    if (src->is_local && dst->is_local) {
+        /* DATATODO: local-only link should already be established, start syncing */
+    } else if (src->is_local) {
+        /* DATATODO: immediately start linking procedure */
+    } else if (dst->is_local) {
+        /* DATATODO: send /data/map including dst address */
+    }
+    mpr_net_use_bus(n);
+    mpr_data_map_send_state(m, MSG_DATA_MAP);
 }
 
 void mpr_data_map_send_state(mpr_data_map map, net_msg_t cmd)
