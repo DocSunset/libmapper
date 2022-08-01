@@ -38,7 +38,7 @@ void parse_args(int argc, char ** argv)
             for (j = 1; j < len; j++) {
                 switch (argv[i][j]) {
                     case 'h':
-                        printf("testdlist_refcounts.c: possible arguments "
+                        printf("testdlist_pop.c: possible arguments "
                                "-q quiet (suppress output), "
                                "-h help, "
                         );
@@ -65,7 +65,6 @@ size_t freed = 0;
 void dummy_destructor(void * data)
 {
     eprintf("Freeing data.\n");
-    free(data);
     ++freed;
 }
 
@@ -181,7 +180,7 @@ int main(int argc, char ** argv)
         mpr_dlist front = 0;
         mpr_dlist back = 0;
         for (size_t i = 0; i < initial_size; ++i) {
-             mpr_dlist_append(&front, &back, malloc(sizeof(dummy_t)), &dummy_destructor);
+             mpr_dlist_append(&front, &back, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
              mpr_dlist_data_as(dummy_t*, back)->a = i;
              mpr_dlist_data_as(dummy_t*, back)->b = i;
         }

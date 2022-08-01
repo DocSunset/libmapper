@@ -65,7 +65,6 @@ size_t freed = 0;
 void dummy_destructor(void * data)
 {
     eprintf("Freeing data.\n");
-    free(data);
     ++freed;
 }
 
@@ -82,7 +81,7 @@ int main(int argc, char ** argv)
     size_t initial_size = 5;
     mpr_dlist front = 0;
     for (size_t i = 0; i < initial_size; ++i) {
-         mpr_dlist_prepend(&front, malloc(sizeof(dummy_t)), &dummy_destructor);
+         mpr_dlist_prepend(&front, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
     }
 
     if (mpr_dlist_get_length(front) != initial_size) {

@@ -67,8 +67,6 @@ void dummy_destructor(void * data)
 {
     dummy_t *dummy = (dummy_t*)data;
     eprintf("Freeing data.\n");
-    free(dummy);
-    eprintf("Successfully freed data.\n");
     freed = 1;
 }
 
@@ -153,12 +151,12 @@ int main(int argc, char ** argv)
     int expected_refcount = 0;
 
     eprintf("Allocating some dummy data.\n");
-    dummy_t * data = calloc(1, sizeof(dummy_t));
+    dummy_t * data = mpr_rc_new(sizeof(dummy_t), &dummy_destructor);
     data->a = 1;
     data->b = 2;
 
     eprintf("Allocating a new list.\n");
-    mpr_dlist list = mpr_dlist_new((void*)data, &dummy_destructor);
+    mpr_dlist list = mpr_dlist_new((mpr_rc)data);
     if (list == 0) {
         eprintf("Failed to allocate list.\n");
         fail = 1;

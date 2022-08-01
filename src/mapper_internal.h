@@ -26,6 +26,7 @@ void print_subscription_flags(int flags);
 /**** Objects ****/
 #include "object.h"
 
+/* DATATODO: change this to something else, e.g. `l` */
 #define MPR_LINK 0x20
 
 /**** Networking ****/

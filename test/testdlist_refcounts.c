@@ -66,7 +66,6 @@ size_t freed = 0;
 void dummy_destructor(void * data)
 {
     eprintf("Freeing data.\n");
-    free(data);
     ++freed;
 }
 
@@ -186,7 +185,7 @@ int main(int argc, char ** argv)
     /* forward */
     {
         eprintf("Allocating a new list.\n");
-        mpr_dlist front = mpr_dlist_new(malloc(sizeof(dummy_t)), &dummy_destructor);
+        mpr_dlist front = mpr_dlist_new(mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
         if (check_not_null_list(front)) goto done;
 
         eprintf("Confirming list's refcount.\n");
@@ -194,7 +193,7 @@ int main(int argc, char ** argv)
 
         eprintf("Inserting after with ref.\n");
         mpr_dlist back = 0;
-        mpr_dlist_insert_after(&back, front, malloc(sizeof(dummy_t)), &dummy_destructor);
+        mpr_dlist_insert_after(&back, front, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
         if (check_not_null_list(back)) goto done;
 
         eprintf("Confirming refcounts.\n");
@@ -205,7 +204,7 @@ int main(int argc, char ** argv)
         if (confirm_length(front, 2)) goto done;
 
         eprintf("Inserting after without ref.\n");
-        mpr_dlist_insert_after(0, back, malloc(sizeof(dummy_t)), &dummy_destructor);
+        mpr_dlist_insert_after(0, back, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
 
         eprintf("Confirming list length.\n");
         if (confirm_length(front, 3)) goto done;
@@ -236,7 +235,7 @@ int main(int argc, char ** argv)
     /* backward */
     {
         eprintf("Allocating a new list.\n");
-        mpr_dlist back = mpr_dlist_new(malloc(sizeof(dummy_t)), &dummy_destructor);
+        mpr_dlist back = mpr_dlist_new(mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
         if (check_not_null_list(back)) goto done;
 
         eprintf("Confirming list's refcount.\n");
@@ -244,9 +243,9 @@ int main(int argc, char ** argv)
 
         eprintf("Inserting before with ref.\n");
         mpr_dlist front = 0;
-        mpr_dlist_insert_before(&front, back, malloc(sizeof(dummy_t)), &dummy_destructor);
-        mpr_dlist_insert_before(&front, front, malloc(sizeof(dummy_t)), &dummy_destructor);
-        mpr_dlist_insert_before(&front, front, malloc(sizeof(dummy_t)), &dummy_destructor);
+        mpr_dlist_insert_before(&front, back, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
+        mpr_dlist_insert_before(&front, front, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
+        mpr_dlist_insert_before(&front, front, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
         if (check_not_null_list(front)) goto done;
 
         eprintf("Confirming refcounts.\n");
@@ -257,7 +256,7 @@ int main(int argc, char ** argv)
         if (confirm_length(back, 4)) goto done;
 
         eprintf("Inserting before without ref.\n");
-        mpr_dlist_insert_before(0, front, malloc(sizeof(dummy_t)), &dummy_destructor);
+        mpr_dlist_insert_before(0, front, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
 
         eprintf("Confirming list length is unchanged.\n");
         if (confirm_length(back, 4)) goto done;

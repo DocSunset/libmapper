@@ -2,38 +2,12 @@
 #define DLIST_H_INCLUDED
 
 #include <stddef.h>
+#include <mapper/rc.h>
+#include <mapper/mapper_constants.h>
 
 #ifndef DLIST_TYPES_INTERNAL
 typedef void * mpr_dlist;
 #endif
-
-/* Handler callback for freeing data managed by a dlist. This will be called when a dlist's refcount
- * drops to zero, and should free the data resource previously allocated and passed to the dlist. */
-/* TODO: if all libmapper data were managed by mpr_rc, we wouldn't need this and could just store
- * an rc inside the list. */
-typedef void mpr_dlist_destructor(void * data);
-
-void mpr_dlist_no_destructor(void * data);
-
-/* The `mpr_dquery` API provides a lazily evaluated query API over `mpr_dlist`s. */
-
-/* Query callback function. Return non-zero to indicate a query match. */
-typedef int mpr_dlist_filter_predicate(void *datum, void **va);
-
-/* Lazily evaluate a new list by filtering an existing one.
- * When the query is constructed, `src` will be iterated over, passing its data to `cb` along with
- * variadic arguments described by an OSC-like typespec string consisting only of mpr_types, until
- * an initial match is located. Subsequent calls to `mpr_dlist_next` or `mpr_dlist_pop` passing the
- * result will repeat this process until the end of `src` has been reached. If a reference
- * to the front of the query list is maintained, the results of the query will be cached as a list
- * accessible from the front. As usual, if a reference to the front is not kept, then iterating
- * through the list will iteratively free the previous link. */
-mpr_dlist mpr_dlist_new_filter(mpr_dlist src, mpr_dlist_filter_predicate *cb, const char * types, ...);
-
-/* Non-lazily evaluate the whole filtered list.
- * This will iterate over a filter so that the whole list is evaluated and cached as a linked
- * list starting at `filter_front`. */
-void mpr_dlist_evaluate_filter(mpr_dlist filter_front);
 
 /* The `mpr_dlist` API provides a generic list cell */
 
@@ -59,10 +33,10 @@ void mpr_dlist_evaluate_filter(mpr_dlist filter_front);
 
 /* Memory handling */
 
-/* Allocate a new mpr_dlist cell pointing to rc.
+/* Allocate a new mpr_dlist cell pointing to an rc.
  * Note that this does not make a new reference to rc; the caller must do so explicitly unless
  * they intend to pass responsibility for their reference to the dlist. */
-mpr_dlist mpr_dlist_new(void * data, mpr_dlist_destructor *destructor);
+mpr_dlist mpr_dlist_new(mpr_rc data);
 
 /* Free a list cell. This decrements the reference count of the data referred to by the list. */
 void mpr_dlist_free(mpr_dlist dlist);
@@ -86,9 +60,8 @@ void mpr_dlist_move(mpr_dlist *dst, mpr_dlist *src);
  * This takes a reference to the data resource of `src`; a true copy is not made. However,
  * the copied cell can be incorporated into a new list without modifying the original.
  * I.e. the list links are copied, but the data is referenced. Be careful not to create
- * cyclic list structures, or memory may eventually be leaked. */
-/* TODO: when all dlist data is stored with an rc, we can restore this function */
-/* mpr_dlist  mpr_dlist_copy(mpr_dlist dlist); */
+ * cyclic structures, or memory may eventually be leaked. */
+mpr_dlist  mpr_dlist_copy(mpr_dlist dlist);
 
 /* Methods for editing structures made of `mpr_dlist` cells. */
 /* Note that these methods edit the underlying data structure, and this will be reflected by
@@ -102,8 +75,8 @@ void mpr_dlist_move(mpr_dlist *dst, mpr_dlist *src);
  * Consequently, if (`iter` is a null list OR `iter` is the front of a list in an `insert_before`
  * operation AND `dst == 0`), then this is a no-op. In these cases, the newly created cell has no
  * incoming references, so conceptually it is immediately freed. */
-void mpr_dlist_insert_before(mpr_dlist *dst, mpr_dlist iter, void * data, mpr_dlist_destructor *destructor);
-void mpr_dlist_insert_after (mpr_dlist *dst, mpr_dlist iter, void * data, mpr_dlist_destructor *destructor);
+void mpr_dlist_insert_before(mpr_dlist *dst, mpr_dlist iter, mpr_rc rc);
+void mpr_dlist_insert_after (mpr_dlist *dst, mpr_dlist iter, mpr_rc rc);
 
 /* Add a new cell at the back of a list.
  * The list will be iterated from `*back` if it is not null, or otherwise from `*front`, to find
@@ -114,13 +87,13 @@ void mpr_dlist_insert_after (mpr_dlist *dst, mpr_dlist iter, void * data, mpr_dl
  * is assumed the user must keep a reference to the front of the list (otherwise it might be
  * garbage collected by the reference counting mechanism). `back` is included so that the scan
  * to find the back of the list can be avoided. */
-void mpr_dlist_append(mpr_dlist *front, mpr_dlist *back, void * data, mpr_dlist_destructor *destructor);
+void mpr_dlist_append(mpr_dlist *front, mpr_dlist *back, mpr_rc rc);
 
 /* Add a new cell at the front of a list.
  * The list will be iterated over from `*front` to find the front of the list.
  * A new cell will be inserted before the front, and `*front` will be updated to point to it.
  * This is a no-op if `front == 0`. */
-void mpr_dlist_prepend(mpr_dlist *front, void * data, mpr_dlist_destructor *destructor);
+void mpr_dlist_prepend(mpr_dlist *front, mpr_rc rc);
 
 /* Remove the cell `iter`, putting it into `dst`,
  * and advancing/reversing `iter` to the next/previous cell.
@@ -168,5 +141,34 @@ size_t mpr_dlist_refcount(mpr_dlist dlist);
 
 /* Check if two list cells are equivalent, e.g. one is a reference to another. */
 int mpr_dlist_equals(mpr_dlist, mpr_dlist);
+
+/* Queries */
+
+/* Query callback function. Return non-zero to indicate a query match. 
+ * \param datum  The data held by a dlist cell to evaluate for in-/ex-clusion by the filter.
+ * \param types  The type format string describing the additional arguments supplied by the user.
+ * \param va     Additional arguments supplied by the user when creating the filter. */
+typedef int mpr_dlist_filter_predicate(mpr_rc datum, const char * types, mpr_union *va);
+
+/* Lazily evaluate a new list by filtering an existing one.
+ * When the query is constructed, `src` will be iterated over, passing its data to `cb` along with
+ * variadic arguments described by an OSC-like typespec string consisting only of mpr_types, until
+ * an initial match is located. Subsequent calls to `mpr_dlist_next` or `mpr_dlist_pop` passing the
+ * result will repeat this process until the end of `src` has been reached. If a reference
+ * to the front of the query list is maintained, the results of the query will be cached as a list
+ * accessible from the front. As usual, if a reference to the front is not kept, then iterating
+ * through the list will iteratively free the previous link.
+ * The list returned is the front of a new list; is `src` has a predecessor, it is ignored. */
+mpr_dlist mpr_dlist_new_filter(mpr_dlist src, mpr_dlist_filter_predicate *cb, const char * types, ...);
+
+/* TODO: ? re-implement isect, diff, union, filter by prop as seen in the mpr_list API,
+ * then replace the latter with dlist ? */
+/* TODO: ? could it be useful to have lazy map and reduce methods as well ? */
+
+/* Non-lazily evaluate the whole filtered list.
+ * This will iterate over a filter so that the whole list is evaluated and cached as a linked
+ * list starting at `filter_front`. */
+void mpr_dlist_evaluate_filter(mpr_dlist filter_front);
+
 
 #endif // DLIST_H_INCLUDED

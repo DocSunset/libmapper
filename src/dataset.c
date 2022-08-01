@@ -20,17 +20,17 @@ const char * mpr_data_sig_by_full_name_types = "s";
 const char * mpr_data_map_by_signals_types = "vv";
 
 /* dlist filter predicates */
-int mpr_data_sigs_not_equal(void *datum, void **va)
+int mpr_data_sigs_not_equal(mpr_rc datum, const char *types, void **va)
 {
     return 1;
 }
 
-int mpr_data_sig_by_full_name(void *datum, void **va)
+int mpr_data_sig_by_full_name(mpr_rc datum, const char *types, void **va)
 {
     return 1;
 }
 
-int mpr_data_map_by_signals(void *datum, void **va)
+int mpr_data_map_by_signals(mpr_rc datum, const char *types, void **va)
 {
     return 1;
 }
@@ -117,20 +117,21 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 {
     RETURN_UNLESS(data);
     /* copy record metadata */
-    mpr_dlist_append(&data->recs.front, &data->recs.back, (void*)record, &mpr_rc_free);
+    mpr_dlist_append(&data->recs.front, &data->recs.back, (mpr_rc)record);
 
-    mpr_sig rec_sig = record->sig;
     mpr_dlist iter;
     for (iter = mpr_dlist_make_ref(data->sigs); iter; mpr_dlist_next(&iter)) {
         mpr_sig iter_sig = mpr_dlist_data_as(mpr_sig, iter);
-        if (rec_sig->obj.id == iter_sig->obj.id) break;
+        if (record->sig->obj.id == iter_sig->obj.id) break;
     }
     if (iter == 0) {
         /* DATATODO: the signal refs stored in a dataset may become invalidated. Should signals be immutable? */
-        mpr_dlist_prepend(&data->sigs, (void*)rec_sig, &mpr_dlist_no_destructor);
+        mpr_rc sigrc = mpr_rc_new(sizeof(mpr_sig), &mpr_rc_no_destructor);
+        *(mpr_sig*)sigrc = record->sig;
+        mpr_dlist_prepend(&data->sigs, sigrc);
         printf("Added signal, list size is %lu\n", mpr_dlist_get_length(data->sigs));
     }
-    mpr_dlist_free(&iter);
+    else mpr_dlist_free(&iter);
 }
 
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
@@ -305,7 +306,7 @@ static inline void _maybe_add_recording(mpr_data_recorder rec)
         /* set the dataset's list to the bounds of the recorder's data buffer */
         data->recs.front = mpr_dlist_make_ref(rec->data->recs.front);
         data->recs.back  = mpr_dlist_make_ref(rec->data->recs.back);
-        mpr_dlist_prepend(&rec->recordings, (void*)data, &mpr_rc_free);
+        mpr_dlist_prepend(&rec->recordings, (mpr_rc)data);
     }
 }
 
@@ -404,7 +405,9 @@ mpr_data_sig mpr_data_sig_new(mpr_dev dev, const char *name,
 
     const char * full_name; /* DATATODO: malloc and snprintf the full name, and then free. */
 
-    mpr_dlist already_exists = mpr_dlist_new_filter(g->dsigs, &mpr_data_sig_by_full_name, mpr_data_sig_by_full_name_types,
+    mpr_dlist already_exists = mpr_dlist_new_filter(g->dsigs,
+                                                    &mpr_data_sig_by_full_name,
+                                                    mpr_data_sig_by_full_name_types,
                                                     full_name);
     if (already_exists) {
         mpr_data_sig ret = mpr_dlist_data_as(mpr_data_sig, already_exists);
@@ -413,7 +416,7 @@ mpr_data_sig mpr_data_sig_new(mpr_dev dev, const char *name,
     }
 
     lsig = mpr_rc_new(sizeof(mpr_local_data_sig_t), &mpr_data_sig_destructor);
-    mpr_dlist_prepend(&g->dsigs, lsig, &mpr_rc_free);
+    mpr_dlist_prepend(&g->dsigs, lsig);
 
     lsig->dev = (mpr_local_dev)dev;
     lsig->obj.id = mpr_dev_get_unused_sig_id((mpr_local_dev)dev);
@@ -549,7 +552,7 @@ mpr_data_map mpr_data_map_new(mpr_data_sig src, mpr_data_sig dst)
     else m = mpr_rc_new(sizeof(mpr_data_map_t), &mpr_rc_no_destructor);
 
     mpr_graph g = mpr_obj_get_graph((mpr_obj)src);
-    mpr_dlist_prepend(&g->dmaps, m, &mpr_rc_free);
+    mpr_dlist_prepend(&g->dmaps, m);
 
     m->obj.type = MPR_DATA_MAP;
     m->obj.graph = src->obj.graph;

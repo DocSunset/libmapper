@@ -24,7 +24,7 @@ typedef void mpr_rc_data_destructor(mpr_rc data);
  * old data and doesn't need side-effects when it is freed. */
 void mpr_rc_no_destructor(mpr_rc data);
 
-/* Allocate a new rc cell pointing to `data` and direct `dst` toward it.
+/* Allocate a new rc cell.
  * size is the size in bytes of the resource to be stored by the rc.
  * destructor must be given or undefined behavior will arise when the refcount drops to zero.
  * Use &mpr_rc_no_destructor if your data doesn't need to do any cleanup or free its own resources.

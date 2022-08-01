@@ -100,13 +100,13 @@ void mpr_data_map_send_state(mpr_data_map map, net_msg_t cmd);
 void mpr_data_map_push(mpr_data_map map);
 
 /* dlist filter predicates */
-int mpr_data_sigs_not_equal(void *datum, void **va);
+int mpr_data_sigs_not_equal(mpr_rc datum, const char *types, void **va);
 extern const char * mpr_data_sigs_not_equal_types;
 
-int mpr_data_sig_by_full_name(void *datum, void **va);
+int mpr_data_sig_by_full_name(mpr_rc datum, const char *types, void **va);
 extern const char * mpr_data_sig_by_full_name_types;
 
-int mpr_data_map_by_signals(void *datum, void **va);
+int mpr_data_map_by_signals(mpr_rc datum, const char *types, void **va);
 extern const char * mpr_data_map_by_signals_types;
 
 #endif

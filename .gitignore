@@ -95,6 +95,7 @@ test/testdlist_refcounts
 test/testdlist_pop
 test/testdlist_prepend
 test/testdatasetpubsub
+test/testdlist_filter
 ### VisualStudio ###
 build
 ## Ignore Visual Studio temporary files, build results, and

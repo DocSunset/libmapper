@@ -39,6 +39,18 @@ enum {
     MPR_NULL            = 'N'   /* 0x4E */  /*!< NULL value. */
 };
 
+typedef union {
+    char b;
+    char c;
+    double d;
+    float f;
+    long h;
+    int i;
+    char * s;
+    mpr_time t;
+    void * v;
+} mpr_union;
+
 typedef char mpr_type;
 
 /*! Symbolic representation of recognized properties. */
