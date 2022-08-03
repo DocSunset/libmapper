@@ -61,13 +61,13 @@ int dataset_length_matches = 0;
 int dataset_value_matches = 0;
 float value = 42.0;
 
-void handler(mpr_data_sig sig, mpr_dataset data, mpr_dlist record, int event)
+void handler(mpr_data_sig sig, mpr_dataset data, mpr_data_record record, int event)
 {
     eprintf("handler\n");
     if (event & MPR_DATASET_INSERT) {
         got_dataset_insert = 1;
         if (mpr_dataset_get_num_records(data) == 1) dataset_length_matches = 1;
-        if (*(float*)mpr_data_record_get_value(mpr_dlist_data_as(mpr_data_record, record)) == value)
+        if (*(float*)mpr_data_record_get_value(record) == value)
             dataset_value_matches = 1;
     }
     if (event & MPR_DATASET_REMOVE) got_dataset_remove = 1;

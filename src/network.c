@@ -2152,11 +2152,11 @@ static int handler_data_map(const char *path, const char *types, lo_arg **av, in
         if (!src) src = mpr_graph_add_data_sig_by_full_name(gph, src_name); /* may make device if needed */
         if (!dst) dst = mpr_graph_add_data_sig_by_full_name(gph, dst_name);
 
-        mpr_dlist already_exists = mpr_dlist_new_filter(gph->dmaps, &mpr_data_map_by_signals, mpr_data_map_by_signals_types,
+        mpr_dlist already_exists = mpr_dlist_new_filter(gph->dmaps,
+                                                        &mpr_data_map_by_signals,
+                                                        mpr_data_map_by_signals_types,
                                                         src, dst);
-        mpr_data_map map = already_exists ? 
-                mpr_dlist_data_as(mpr_data_map, already_exists)
-                : mpr_data_map_new(src, dst);
+        mpr_data_map map = already_exists ? *(mpr_data_map*)already_exists : mpr_data_map_new(src, dst);
 
         _update_data_map(map, types, av, ac);
 

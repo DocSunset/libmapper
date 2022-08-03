@@ -619,9 +619,12 @@ mpr_data_map mpr_graph_get_data_map_by_name(mpr_graph g, const char * src, const
 
 mpr_data_sig mpr_graph_get_data_sig_by_full_name(mpr_graph g, const char * name)
 {
-    mpr_dlist sig = mpr_dlist_new_filter(g->dsigs, &mpr_data_sig_by_full_name, mpr_data_sig_by_full_name_types, name);
+    mpr_dlist sig = mpr_dlist_new_filter(g->dsigs,
+                                         &mpr_data_sig_by_full_name,
+                                         mpr_data_sig_by_full_name_types,
+                                         name);
     if (sig) {
-        mpr_data_sig ret = mpr_dlist_data_as(mpr_data_sig, sig);
+        mpr_data_sig ret = *(mpr_data_sig*)sig;
         mpr_dlist_free(sig);
         return ret;
     }

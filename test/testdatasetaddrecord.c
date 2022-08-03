@@ -103,7 +103,7 @@ int main(int argc, char ** argv)
     int result = 0;
     int i;
     for (mpr_dlist iter = mpr_dataset_get_records(data); iter; mpr_dlist_next(&iter)) {
-        mpr_data_record out = mpr_dlist_data_as(mpr_data_record, iter);
+        mpr_data_record out = *(mpr_data_record*)iter;
         mpr_sig sig_out = mpr_data_record_get_sig(out);
         for (i = 0; i < 3; ++i)
         {

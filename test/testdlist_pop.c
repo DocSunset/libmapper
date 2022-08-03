@@ -77,13 +77,13 @@ int confirm_contents(mpr_dlist list, size_t i)
         fail = 1;
         return 1;
     }
-    if (mpr_dlist_data_as(dummy_t*, list)->a != i) fail = 1;
-    if (mpr_dlist_data_as(dummy_t*, list)->b != i) fail = 1;
+    if ( (*(dummy_t**)list)->a != i ) fail = 1;
+    if ( (*(dummy_t**)list)->b != i ) fail = 1;
     if (fail == 1) {
         eprintf("Data unexpectedly differ. %lu vs %u,%f\n",
                 i,
-                mpr_dlist_data_as(dummy_t*, list)->a,
-                mpr_dlist_data_as(dummy_t*, list)->b);
+                (*(dummy_t**)list)->a,
+                (*(dummy_t**)list)->b);
         return 1;
     }
     return 0;
@@ -181,8 +181,8 @@ int main(int argc, char ** argv)
         mpr_dlist back = 0;
         for (size_t i = 0; i < initial_size; ++i) {
              mpr_dlist_append(&front, &back, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
-             mpr_dlist_data_as(dummy_t*, back)->a = i;
-             mpr_dlist_data_as(dummy_t*, back)->b = i;
+             (*(dummy_t**)back)->a = i;
+             (*(dummy_t**)back)->b = i;
         }
 
         eprintf("Confirming list length.\n");

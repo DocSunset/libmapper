@@ -73,8 +73,8 @@ int fail = 0;
 
 void set_contents(mpr_dlist list)
 {
-    mpr_dlist_data_as(dummy_t*, list)->a = 1;
-    mpr_dlist_data_as(dummy_t*, list)->b = 2;
+    (*(dummy_t**)list)->a = 1;
+    (*(dummy_t**)list)->b = 2;
 }
 
 int confirm_contents(mpr_dlist list)
@@ -84,12 +84,12 @@ int confirm_contents(mpr_dlist list)
         fail = 1;
         return 1;
     }
-    if (mpr_dlist_data_as(dummy_t*, list)->a != 1) fail = 1;
-    if (mpr_dlist_data_as(dummy_t*, list)->b != 2) fail = 1;
+    if ((*(dummy_t**)list)->a != 1) fail = 1;
+    if ((*(dummy_t**)list)->b != 2) fail = 1;
     if (fail == 1) {
         eprintf("Data unexpectedly differ. 1,2.0f vs %u,%f\n",
-                mpr_dlist_data_as(dummy_t*, list)->a,
-                mpr_dlist_data_as(dummy_t*, list)->b);
+                (*(dummy_t**)list)->a,
+                (*(dummy_t**)list)->b);
         return 1;
     }
     return 0;
@@ -97,9 +97,9 @@ int confirm_contents(mpr_dlist list)
 
 int confirm_refcount(mpr_dlist list, size_t expected)
 {
-    if (mpr_rc_refcount(list) != expected) {
+    if (mpr_dlist_refcount(list) != expected) {
         eprintf("Actual refcount %lu does not match expected value %lu.\n"
-                , mpr_rc_refcount(list)
+                , mpr_dlist_refcount(list)
                 , expected
                 );
         fail = 1;
@@ -215,7 +215,7 @@ int main(int argc, char ** argv)
 
         eprintf("Advancing `back`.\n");
         mpr_dlist_next(&back);
-        if (check_not_null_list(&back)) goto done;
+        if (check_not_null_list(back)) goto done;
 
         eprintf("Confirming refcounts.\n");
         if (confirm_refcount(front, 1)) goto done;
@@ -258,6 +258,9 @@ int main(int argc, char ** argv)
         eprintf("Inserting before without ref.\n");
         mpr_dlist_insert_before(0, front, mpr_rc_new(sizeof(dummy_t), &dummy_destructor));
 
+        eprintf("Confirming one freed.\n");
+        if (confirm_freed(1)) goto done;
+
         eprintf("Confirming list length is unchanged.\n");
         if (confirm_length(back, 4)) goto done;
 
@@ -267,7 +270,7 @@ int main(int argc, char ** argv)
 
         eprintf("Advancing `front`.\n");
         mpr_dlist_next(&front);
-        if (check_not_null_list(&front)) goto done;
+        if (check_not_null_list(front)) goto done;
 
         eprintf("Confirming one freed.\n");
         if (confirm_freed(1)) goto done;

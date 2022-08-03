@@ -96,9 +96,9 @@ int main(int argc, char ** argv)
     }
     eprintf("Signal list size matches.\n");
     for (; sigs; mpr_dlist_next(&sigs)) {
-        if(!( mpr_dlist_data_as(mpr_sig, sigs) == sig[0]
-           || mpr_dlist_data_as(mpr_sig, sigs) == sig[1]
-           || mpr_dlist_data_as(mpr_sig, sigs) == sig[2] ))
+        if(!( **(mpr_sig**)sigs == sig[0]
+           || **(mpr_sig**)sigs == sig[1]
+           || **(mpr_sig**)sigs == sig[2] ))
         {
             eprintf("Signal list result not found.\n");
             goto done;

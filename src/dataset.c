@@ -20,17 +20,17 @@ const char * mpr_data_sig_by_full_name_types = "s";
 const char * mpr_data_map_by_signals_types = "vv";
 
 /* dlist filter predicates */
-int mpr_data_sigs_not_equal(mpr_rc datum, const char *types, void **va)
+int mpr_data_sigs_not_equal(mpr_rc datum, const char *types, mpr_union *va)
 {
     return 1;
 }
 
-int mpr_data_sig_by_full_name(mpr_rc datum, const char *types, void **va)
+int mpr_data_sig_by_full_name(mpr_rc datum, const char *types, mpr_union *va)
 {
     return 1;
 }
 
-int mpr_data_map_by_signals(mpr_rc datum, const char *types, void **va)
+int mpr_data_map_by_signals(mpr_rc datum, const char *types, mpr_union *va)
 {
     return 1;
 }
@@ -121,17 +121,18 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 
     mpr_dlist iter;
     for (iter = mpr_dlist_make_ref(data->sigs); iter; mpr_dlist_next(&iter)) {
-        mpr_sig iter_sig = mpr_dlist_data_as(mpr_sig, iter);
-        if (record->sig->obj.id == iter_sig->obj.id) break;
+        mpr_sig data_sig = *(mpr_sig*)iter;
+        if (record->sig->obj.id == data_sig->obj.id) break;
     }
     if (iter == 0) {
+        /* we have not seen record->sig before, i.e. it is not in data->sigs. Add it to data->sigs. */
         /* DATATODO: the signal refs stored in a dataset may become invalidated. Should signals be immutable? */
         mpr_rc sigrc = mpr_rc_new(sizeof(mpr_sig), &mpr_rc_no_destructor);
         *(mpr_sig*)sigrc = record->sig;
         mpr_dlist_prepend(&data->sigs, sigrc);
         printf("Added signal, list size is %lu\n", mpr_dlist_get_length(data->sigs));
     }
-    else mpr_dlist_free(&iter);
+    else mpr_dlist_free(iter);
 }
 
 mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
@@ -143,8 +144,8 @@ mpr_data_record mpr_dataset_get_record(mpr_dataset data, unsigned int idx)
         ++i;
         mpr_dlist_next(&iter);
     }
-    mpr_data_record ret = mpr_dlist_data_as(mpr_data_record, iter);
-    mpr_dlist_free(&iter);
+    mpr_data_record ret = *(mpr_data_record*)iter;
+    mpr_dlist_free(iter);
     return ret;
 }
 
@@ -410,7 +411,7 @@ mpr_data_sig mpr_data_sig_new(mpr_dev dev, const char *name,
                                                     mpr_data_sig_by_full_name_types,
                                                     full_name);
     if (already_exists) {
-        mpr_data_sig ret = mpr_dlist_data_as(mpr_data_sig, already_exists);
+        mpr_data_sig ret = *(mpr_data_sig*)already_exists;
         mpr_dlist_free(already_exists);
         return ret;
     }
@@ -507,7 +508,7 @@ mpr_data_map mpr_data_map_new(mpr_data_sig src, mpr_data_sig dst)
                                                     &mpr_data_map_by_signals, mpr_data_map_by_signals_types,
                                                     src, dst);
     if (already_exists) {
-        mpr_data_map ret = mpr_dlist_data_as(mpr_data_map, already_exists);
+        mpr_data_map ret = *(mpr_data_map*)already_exists;
         mpr_dlist_free(already_exists);
         return ret;
     }

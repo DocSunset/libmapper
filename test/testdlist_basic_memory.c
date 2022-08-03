@@ -79,11 +79,11 @@ int compare_data(dummy_t* data, mpr_dlist list)
         fail = 1;
         return 1;
     }
-    if (memcmp(data, mpr_dlist_data(list), sizeof(dummy_t)) != 0) {
+    if (memcmp(data, *list, sizeof(dummy_t)) != 0) {
         eprintf("Data unexpectedly differ. %u,%f vs %u,%f\n",
                 data->a, data->b,
-                mpr_dlist_data_as(dummy_t*, list)->a,
-                mpr_dlist_data_as(dummy_t*, list)->b);
+                (*(dummy_t**)list)->a,
+                (*(dummy_t**)list)->b);
         fail = 1;
         return 1;
     }
@@ -92,7 +92,7 @@ int compare_data(dummy_t* data, mpr_dlist list)
 
 int confirm_refcount(mpr_dlist list, size_t expected)
 {
-    if (mpr_rc_refcount(list) != expected) {
+    if (mpr_dlist_refcount(list) != expected) {
         eprintf("Actual refcount %lu does not match expected value %lu.\n"
                 , mpr_rc_refcount(list)
                 , expected
@@ -244,11 +244,11 @@ int main(int argc, char ** argv)
     if (try_to_free(list, "list")) goto done;
 
     eprintf("Confirming the ref can still access the data.\n");
-    float sum = mpr_dlist_data_as(dummy_t*,ref)->a + mpr_dlist_data_as(dummy_t*,ref)->b;
+    float sum = (*(dummy_t**)ref)->a + (*(dummy_t**)ref)->b;
     if (3.0f != sum) {
         eprintf("%u + %f = %f\n"
-                , mpr_dlist_data_as(dummy_t*,ref)->a
-                , mpr_dlist_data_as(dummy_t*,ref)->b 
+                , (*(dummy_t**)ref)->a
+                , (*(dummy_t**)ref)->b 
                 , sum);
         fail = 1;
         goto done;
@@ -258,11 +258,11 @@ int main(int argc, char ** argv)
 
     /*
     eprintf("Confirming the copy can still access the data.\n");
-    float sum1 = mpr_dlist_data_as(dummy_t*,copy)->a + mpr_dlist_data_as(dummy_t*,copy)->b;
+    float sum1 = (*(dummy_t**)copy)->a + (*(dummy_t**)copy)->b;
     if (3.0f != sum1) {
         eprintf("%u + %f = %f\n"
-                , mpr_dlist_data_as(dummy_t*,copy)->a
-                , mpr_dlist_data_as(dummy_t*,copy)->b 
+                , (*(dummy_t**)copy)->a
+                , (*(dummy_t**)copy)->b 
                 , sum1);
         fail = 1;
         goto done;

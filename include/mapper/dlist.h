@@ -5,37 +5,38 @@
 #include <mapper/rc.h>
 #include <mapper/mapper_constants.h>
 
-#ifndef DLIST_TYPES_INTERNAL
-typedef void * mpr_dlist;
-#endif
+/* The `mpr_dlist` API provides a generic list cell for making simple linked lists */
 
-/* The `mpr_dlist` API provides a generic list cell */
-
-/* A reference counting mechanism is used to ensure that the lifetime of dlist managed memory
- * exceeds that of all references to it. 
+/* A reference counting mechanism (mpr_rc) is used to ensure that the lifetime of dlist
+ * managed memory exceeds that of all references to it, including references made by other
+ * dlist cells in a linked chain.
  * 
- * The counting mechanism tracks cells that directly refer to other cells,
+ * The counting mechanism tracks data shared between cells,
  * and forward links within lists of cells; backwards links are not counted so as to avoid
  * creating reference cycles. Because of this, if the user does not keep a reference to the
  * front of the list, e.g. while iterating over a list, then the list will be progressively
  * freed as the iterator advances through the list. */
 
-/* The user should only assign 0 to `mpr_dlist`, as other assignments would circumvent the
- * reference counting mechanism. All functions that would require the user to receive a
- * value from the API should use a return variable in the form of a pointer to a `mpr_dlist`,
- * usually called `dst`. Defined behavior should be given for all values of `dst`
- * including a null pointer, a pointer to a null pointer, or a pointer to an existing list.
- * Obviously, undefined behavior will result if a pointer to something else is given. */
-
 /* A null pointer is always considered a valid list, i.e. a null list.
  * Note however that many methods require a pointer to a list; this pointer should not be null,
  * although the dereferenced value may be. */
+
+/* A mpr_dlist is represented by a pointer to a mpr_rc, i.e. a `void**`. The user can treat this
+ * as a pointer to a pointer to whatever, and dereference it to access the data in the list cell.
+ * Example: To access a mpr_dataset held in a list of datasets, the user may write
+ * `mpr_dataset data = *(mpr_dataset*)dlist;` */
+
+typedef mpr_rc *mpr_dlist;
 
 /* Memory handling */
 
 /* Allocate a new mpr_dlist cell pointing to an rc.
  * Note that this does not make a new reference to rc; the caller must do so explicitly unless
- * they intend to pass responsibility for their reference to the dlist. */
+ * they intend to pass responsibility for their reference to the dlist. The `data` rc is guaranteed
+ * to be freed eventually by the dlist, so if the user wishes to ensure they can continue to use
+ * their reference even after the dlist is garbage collected, they must explicitly make a new
+ * reference before passing `data` into the dlist. This applies also to the insertion methods
+ * below. */
 mpr_dlist mpr_dlist_new(mpr_rc data);
 
 /* Free a list cell. This decrements the reference count of the data referred to by the list. */
@@ -67,6 +68,8 @@ mpr_dlist  mpr_dlist_copy(mpr_dlist dlist);
 /* Note that these methods edit the underlying data structure, and this will be reflected by
  * any references held by the user, but not by copies/queries
  * (which have their own independent structure.)
+ * See also the note on `mpr_dlist_new` about the reference and lifetime semantics of passing
+ * a mpr_rc into a dlist.
  */
 
 /* Allocates a new cell before/after the cell pointed to by `iter`.
@@ -128,13 +131,6 @@ size_t mpr_dlist_get_back (mpr_dlist *dst, mpr_dlist iter);
 void mpr_dlist_next(mpr_dlist *iter);
 void mpr_dlist_prev(mpr_dlist *iter);
 
-/* Access the data cared for or referred to by `dlist`. */
-void * mpr_dlist_data(mpr_dlist dlist);
-
-/* A helpful macro to access a cell's data and cast it as a particular type.
- * Example: `T *data = mpr_dlist_data_as(T*, dlist);` */
-#define mpr_dlist_data_as(T, dlist) ((T)mpr_dlist_data(dlist))
-
 /* Test helpers. These functions are mainly provided for testing purposes. */
 
 size_t mpr_dlist_refcount(mpr_dlist dlist);
@@ -147,7 +143,10 @@ int mpr_dlist_equals(mpr_dlist, mpr_dlist);
 /* Query callback function. Return non-zero to indicate a query match. 
  * \param datum  The data held by a dlist cell to evaluate for in-/ex-clusion by the filter.
  * \param types  The type format string describing the additional arguments supplied by the user.
- * \param va     Additional arguments supplied by the user when creating the filter. */
+ * \param va     Additional arguments supplied by the user when creating the filter.
+ *               Technically the callback may mutate the contents of the variadic arguments,
+ *               and subsequent calls to the callback will observe these modifications,
+ *               but arguably this is an implementation detail and should not be relied on. */
 typedef int mpr_dlist_filter_predicate(mpr_rc datum, const char * types, mpr_union *va);
 
 /* Lazily evaluate a new list by filtering an existing one.
@@ -158,6 +157,8 @@ typedef int mpr_dlist_filter_predicate(mpr_rc datum, const char * types, mpr_uni
  * to the front of the query list is maintained, the results of the query will be cached as a list
  * accessible from the front. As usual, if a reference to the front is not kept, then iterating
  * through the list will iteratively free the previous link.
+ * The whole list is always filtered starting from the front, even if `src` is an iterator into
+ * some other part of the list.
  * The list returned is the front of a new list; is `src` has a predecessor, it is ignored. */
 mpr_dlist mpr_dlist_new_filter(mpr_dlist src, mpr_dlist_filter_predicate *cb, const char * types, ...);
 
