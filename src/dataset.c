@@ -167,19 +167,17 @@ mpr_dlist mpr_dataset_get_sigs(mpr_dataset data)
     return mpr_dlist_make_ref(data->sigs);
 }
 
-/* DATATODO: implement publish methods */
+/* DATATODO: implement dataset publish method */
 mpr_data_sig mpr_dataset_publish(mpr_dataset data, mpr_dev dev, const char * name,
                          mpr_data_sig_handler handler, int events)
 {
     return 0;
 }
 
-void mpr_dataset_publish_with_sig(mpr_dataset data, mpr_data_sig sig)
-{
-}
-
 void mpr_dataset_withdraw(mpr_dataset data)
 {
+    RETURN_UNLESS(data && data->publisher);
+    mpr_data_sig_withdraw_dataset((mpr_data_sig)data->publisher);
 }
 
 /* Data recorders */
@@ -384,7 +382,7 @@ void mpr_data_sig_destructor(mpr_rc rc)
 {
     mpr_data_sig sig = (mpr_data_sig)rc;
     free(sig->path);
-    mpr_dlist_free(sig->pubs);
+    mpr_rc_free(sig->pub);
     mpr_dlist_free(sig->subs);
     FUNC_IF(mpr_tbl_free, sig->obj.props.synced);
     FUNC_IF(mpr_tbl_free, sig->obj.props.staged);
@@ -457,9 +455,49 @@ void mpr_data_sig_free(mpr_data_sig sig)
     mpr_graph_remove_data_sig(g, sig, MPR_OBJ_REM);
 }
 
-mpr_dlist mpr_data_sig_get_pubs(mpr_data_sig sig)
+void mpr_data_sig_withdraw_dataset(mpr_data_sig sig)
 {
-    return sig ? mpr_dlist_make_ref(sig->pubs) : 0;
+    RETURN_UNLESS(sig && sig->is_local);
+    mpr_local_data_sig lsig = (mpr_local_data_sig)sig;
+    for (mpr_dlist map = mpr_dlist_make_ref(lsig->maps); map; mpr_dlist_next(&map)) {
+        mpr_local_data_map lmap = *(mpr_local_data_map*)map;
+        if (lmap->link->is_local_only) {
+            mpr_local_data_sig ldst = (mpr_local_data_sig)lmap->dst;
+            mpr_data_sig_remove_dataset(ldst, sig->pub);
+        } else {
+            /* DATATODO: implement removing dataset from the network */
+        }
+    }
+    mpr_rc_free(lsig->pub);
+    lsig->pub = 0;
+}
+
+void mpr_data_sig_publish_dataset(mpr_data_sig sig, mpr_dataset data)
+{
+    RETURN_UNLESS(sig && sig->is_local);
+    mpr_local_data_sig lsig = (mpr_local_data_sig)sig;
+    if (data->publisher == lsig) return; /* this dataset is already published with this signal */
+    if (data->publisher) mpr_dataset_withdraw(data);
+    if (lsig->pub) mpr_data_sig_withdraw_dataset(sig);
+    lsig->pub = mpr_rc_make_ref((mpr_rc)data);
+    data->publisher = lsig;
+    if (!lsig->maps) return;
+    for (mpr_dlist map = mpr_dlist_make_ref(lsig->maps); map; mpr_dlist_next(&map)) {
+        mpr_local_data_map lmap = *(mpr_local_data_map*)map;
+        if (lmap->link->is_local_only) {
+            /* we can push the new dataset directly to the dst sig with a ref in memory */
+            mpr_local_data_sig ldst = (mpr_local_data_sig)lmap->dst;
+            mpr_data_sig_insert_dataset(ldst, data);
+        } else {
+            /* DATATODO: push the dataset over the network */
+        }
+    }
+}
+
+
+mpr_dataset mpr_data_sig_get_pub(mpr_data_sig sig)
+{
+    return sig ? sig->pub : 0;
 }
 
 mpr_dlist mpr_data_sig_get_subs(mpr_data_sig sig)
@@ -479,6 +517,33 @@ void mpr_data_sig_set_cb(mpr_data_sig sig, mpr_data_sig_handler* h, int events)
     mpr_local_data_sig lsig = (mpr_local_data_sig)sig;
     lsig->handler = (void*)h;
     lsig->event_flags = events;
+}
+
+static void _maybe_handle_data_sig_evt(mpr_local_data_sig sig, 
+                                       mpr_dataset data,
+                                       mpr_data_record rec,
+                                       mpr_data_evt evt)
+{
+    if (sig->event_flags & evt)
+        ((mpr_data_sig_handler*)sig->handler)((mpr_data_sig)sig, data, rec, evt);
+}
+
+void mpr_data_sig_insert_dataset(mpr_local_data_sig sig, mpr_dataset data)
+{
+    mpr_dlist_prepend(&sig->subs, data);
+    ++sig->num_subs;
+    _maybe_handle_data_sig_evt(sig, data, 0, MPR_DATASET_INSERT);
+}
+
+void mpr_data_sig_remove_dataset(mpr_local_data_sig sig, mpr_dataset data)
+{
+    /* we currently assume that data must already be a subscriber,
+     * so this might cause issues if for some reason it isn't. */
+    mpr_dlist filtered = mpr_dlist_new_filter(sig->subs,
+                                              &mpr_dlist_ptr_compare, mpr_dlist_ptr_compare_types,
+                                              MPR_OP_NEQ, data);
+    mpr_dlist_move(&sig->subs, &filtered);
+    _maybe_handle_data_sig_evt(sig, data, 0, MPR_DATASET_REMOVE);
 }
 
 /* Dataset mappings */
@@ -523,13 +588,14 @@ mpr_data_map mpr_data_map_new(mpr_data_sig src, mpr_data_sig dst)
          * we know they must both be initialized, since we wouldn't know about them otherwise
          * if the signals are the same (they have the same dev name and sig name), we can't make this map
          * else we can make the map */
+
+    /* check if the requested map is valid */
     if (src->is_local && dst->is_local) {
         if (src == dst) {
             trace("Cannot connect signal '%s:%s' to itself.\n"
                   mpr_dev_get_name(src->dev), src->name);
             return 0;
         }
-        /* DATATODO: else immediately establish local-only link */
     }
     else if (src->is_local || dst->is_local) {
         mpr_local_data_sig lsig = src->is_local ? (mpr_local_data_sig)src : (mpr_local_data_sig)dst;
@@ -549,6 +615,7 @@ mpr_data_map mpr_data_map_new(mpr_data_sig src, mpr_data_sig dst)
     if (src->is_local) {
         m = mpr_rc_new(sizeof(mpr_local_data_map_t), &mpr_rc_no_destructor); /* map has no memory resources to free */
         m->is_local = 1;
+        mpr_dlist_prepend(&((mpr_local_data_sig)src)->maps, (mpr_local_data_map)m);
     }
     else m = mpr_rc_new(sizeof(mpr_data_map_t), &mpr_rc_no_destructor);
 
@@ -570,9 +637,15 @@ void mpr_data_map_push(mpr_data_map m)
     mpr_net n = &m->obj.graph->net;
     mpr_data_sig src = m->src;
     mpr_data_sig dst = m->dst;
-    RETURN_UNLESS(mpr_dev_get_is_ready(src->dev) && mpr_dev_get_is_ready(dst->dev));
     if (src->is_local && dst->is_local) {
-        /* DATATODO: local-only link should already be established, start syncing */
+        /* if src and dst are both local, i.e. both running in the same process,
+         * we can connect the map immediately, in memory, simply passing references,
+         * even if the devices have not yet received unique ordinals on the network. */
+        mpr_link link = mpr_graph_add_link(src->obj.graph, src->dev, dst->dev);
+        ((mpr_local_data_map)m)->link = link;
+        if (src->pub) mpr_data_sig_insert_dataset((mpr_local_data_sig)dst, src->pub);
+    } else if (!(mpr_dev_get_is_ready(src->dev) && mpr_dev_get_is_ready(dst->dev))) {
+        return;
     } else if (src->is_local) {
         /* DATATODO: immediately start linking procedure */
     } else if (dst->is_local) {

@@ -15,28 +15,29 @@ typedef struct _mpr_data_record {
 } mpr_data_record_t, *mpr_data_record;
 
 typedef struct _mpr_dataset {
-    const char * name;
+    const char * name; /* A local-only nickname for the dataset. When published, the data_sig name is used to identify the dataset */
     int synced; /* The dataset is synchronized, meaning it is populated with data. This is true if the dataset is original, or if it is has been updated by an incoming data map to match the remote dataset it refers to. */
     struct {
         mpr_dlist front;
         mpr_dlist back;
     } recs;
-    mpr_dlist sigs;
-    /* TODO: track this metadata. Should datasets be `mpr_obj`s? */
+    mpr_dlist sigs; /* a list of signals that appear in the dataset */
+    /* DATATODO: track this metadata. Should datasets be `mpr_obj`s? */
     int num_records;
     double duration;
-    struct _mpr_data_sig *pubr; /* pointer to publishing sig, or null if not published */
+    struct _mpr_local_data_sig * publisher; /* the mpr_local_data_sig that publish this dataset, if any */
 } mpr_dataset_t, *mpr_dataset;
 
 #define MPR_DATA_SIG_STRUCT_ITEMS \
     mpr_obj_t obj;      /* always first (so that the sig can be safely cast as a mpr_obj) */\
     char * path;        /* OSC path of the sig, which must start with `/` */\
     char * name;        /* Name of the sig, i.e. path+1 */\
-    mpr_dlist pubs;     /* Datasets that this signal publishes */\
+    mpr_dataset pub;    /* Dataset that this signal publishes */\
     mpr_dlist subs;     /* Datasets this signal is subscribed to */\
     /* TODO: should these be mpr_props? */\
     int num_pubs;\
     int num_subs;\
+    int event_flags;\
     int is_local;
 
 typedef struct _mpr_data_sig {
@@ -48,7 +49,6 @@ typedef struct _mpr_local_data_sig {
     MPR_DATA_SIG_STRUCT_ITEMS
     mpr_local_dev dev;
     void *handler;
-    int event_flags;
     mpr_dlist maps; /* list of mpr_local_data_maps where this signal is the source */
 } mpr_local_data_sig_t, *mpr_local_data_sig;
 
@@ -108,5 +108,11 @@ extern const char * mpr_data_sig_by_full_name_types;
 
 int mpr_data_map_by_signals(mpr_rc datum, const char *types, mpr_union *va);
 extern const char * mpr_data_map_by_signals_types;
+
+/* insert a dataset as a subscription into a data sig slot, triggering callbacks. */
+void mpr_data_sig_insert_dataset(mpr_local_data_sig sig, mpr_dataset data);
+
+/* remove a dataset as a subscription from a data sig slot, triggering callbacks. */
+void mpr_data_sig_remove_dataset(mpr_local_data_sig sig, mpr_dataset data);
 
 #endif

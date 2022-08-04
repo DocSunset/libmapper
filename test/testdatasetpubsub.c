@@ -66,9 +66,12 @@ void handler(mpr_data_sig sig, mpr_dataset data, mpr_data_record record, int eve
     eprintf("handler\n");
     if (event & MPR_DATASET_INSERT) {
         got_dataset_insert = 1;
-        if (mpr_dataset_get_num_records(data) == 1) dataset_length_matches = 1;
-        if (*(float*)mpr_data_record_get_value(record) == value)
-            dataset_value_matches = 1;
+        if (mpr_dataset_get_num_records(data) == 1) {
+            dataset_length_matches = 1;
+            mpr_data_record rec = *(mpr_data_record*)mpr_dataset_get_records(data);
+            if (*(float*)mpr_data_record_get_value(rec) == value)
+                dataset_value_matches = 1;
+        }
     }
     if (event & MPR_DATASET_REMOVE) got_dataset_remove = 1;
 }
@@ -90,10 +93,6 @@ int main(int argc, char ** argv)
     mpr_dev subber = mpr_dev_new("test_subscriber", 0);
     mpr_data_sig subsig = mpr_data_sig_new(subber, "subsig", handler, MPR_DATA_ALL);
 
-    eprintf("Setting up monitor.\n");
-    mpr_graph g = mpr_graph_new(MPR_DATA_OBJ);
-    mpr_dev monitor = mpr_dev_new("test_monitor", g);
-
     eprintf("Setting up dataset.\n");
     mpr_time time = {0,0};
     mpr_data_record record = mpr_data_record_new(sig, MPR_SIG_UPDATE, 0, 1, MPR_FLT, &value, time);
@@ -105,7 +104,7 @@ int main(int argc, char ** argv)
 #define POLL \
         mpr_dev_poll(pubber, 10);\
         mpr_dev_poll(subber, 10);\
-        mpr_dev_poll(monitor, 10)
+
         POLL;
         if (done) goto done;
     }
@@ -121,14 +120,17 @@ int main(int argc, char ** argv)
     }
 
     eprintf("Publishing dataset.\n");
-    mpr_dataset_publish_with_sig(data, pubsig);
+    mpr_data_sig_publish_dataset(pubsig, data);
 
     eprintf("Polling devices.\n");
     POLL;
     if (done) goto done;
 
-    /* DATATODO: update the dataset in various ways */
-    /* DATATODO: check that monitor has noticed the dataset */
+    /* not necessarily all in this test file... */
+    /* DATATODO: test adding and removing records from the dataset */
+    /* DATATODO: test applying standardized filters to the dataset */
+    /* DATATODO: test merging the dataset with another dataset */
+    /* DATATODO: test the network case(s) (src requests map, dst requests map, monitor requests map) */
 
     eprintf("Withdrawing dataset.\n");
     mpr_dataset_withdraw(data);
@@ -140,8 +142,6 @@ int main(int argc, char ** argv)
   done:
     mpr_dev_free(pubber);
     mpr_dev_free(subber);
-    mpr_dev_free(monitor);
-    mpr_graph_free(g);
     mpr_data_record_free(record);
     mpr_dataset_free(data);
 

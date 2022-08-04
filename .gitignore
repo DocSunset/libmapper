@@ -166,4 +166,5 @@ ipch/
 *.pidb
 *.svclog
 *.scc
-
+compile_commands.json
+.cache

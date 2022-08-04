@@ -231,7 +231,7 @@ void mpr_dlist_rpop(mpr_dlist *dst, mpr_dlist *iter)
 
 void _query_next(mpr_dlist *iter, mpr_ll ql)
 {
-    mpr_dlist_query q = (mpr_dlist_query*)ql->data;
+    mpr_dlist_query q = (mpr_dlist_query)ql->data;
     /* scan q to the next matching list element 
      * or the end of the list if there are no matches */
     for ( ; q->parent; mpr_dlist_next(&q->parent)) {
@@ -452,3 +452,34 @@ void mpr_dlist_evaluate_filter(mpr_dlist front)
     while (iter) mpr_dlist_next(&iter); /* < causes the whole source list to be iterated */
     return;
 }
+
+int mpr_dlist_ptr_compare(mpr_rc datum, const char * types, mpr_union *va)
+{
+    mpr_op op = va[0].i;
+    void * ptr = va[1].v;
+    switch (op) {
+        case MPR_OP_EQ:
+            return datum == ptr;
+        case MPR_OP_GT:
+            return datum > ptr;
+        case MPR_OP_GTE:
+            return datum >= ptr;
+        case MPR_OP_LT:
+            return datum < ptr;
+        case MPR_OP_LTE:
+            return datum <= ptr;
+        case MPR_OP_NEQ:
+            return datum != ptr;
+        case MPR_OP_UNDEFINED:
+        case MPR_OP_EX:
+        case MPR_OP_NEX:
+        case MPR_OP_ALL:
+        case MPR_OP_ANY:
+        case MPR_OP_NONE:
+        default:
+            trace("mpr_op %d not meaningful in mpr_dlist_ptr_compare.\n", op);
+            return 0;
+    }
+}
+
+const char * mpr_dlist_ptr_compare_types = "iv";

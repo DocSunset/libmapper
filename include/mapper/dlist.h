@@ -159,7 +159,12 @@ typedef int mpr_dlist_filter_predicate(mpr_rc datum, const char * types, mpr_uni
  * through the list will iteratively free the previous link.
  * The whole list is always filtered starting from the front, even if `src` is an iterator into
  * some other part of the list.
- * The list returned is the front of a new list; is `src` has a predecessor, it is ignored. */
+ * \param src    the list to filter
+ * \param cb     the predicate by which to include or exclude elements of `src`
+ * \param types  an OSC-like typespec string describing the callback's arguments
+ * \param ...    additional arguments to the callback predicaate
+ * \return       a new lazily-evaluated list containing only elements of `src` where the predicate
+ *               returns a non-zero value. */
 mpr_dlist mpr_dlist_new_filter(mpr_dlist src, mpr_dlist_filter_predicate *cb, const char * types, ...);
 
 /* TODO: ? re-implement isect, diff, union, filter by prop as seen in the mpr_list API,
@@ -171,5 +176,23 @@ mpr_dlist mpr_dlist_new_filter(mpr_dlist src, mpr_dlist_filter_predicate *cb, co
  * list starting at `filter_front`. */
 void mpr_dlist_evaluate_filter(mpr_dlist filter_front);
 
+/* Helpful predicates */
+
+/* Compare two pointers. The source list is assumed to be a list of pointers to objects,
+ * such as datasets or signals. The user should supply a mpr_op and a pointer to compare with.
+ * Example: To find a specific pointer in a list of pointers,
+ * ```
+ * void * ptr = 100;
+ * mpr_dlist found = mpr_dlist_new_filter(src,
+ *                                        &mpr_dlist_ptr_compare, &mpr_dlist_ptr_compare_types,
+ *                                        MPR_OP_EQ, ptr);
+ * if (found) {
+ *     void * the_ptr = *(void**)found;
+ *     // do something
+ * } else // do somethign else
+ * ```
+ */
+int mpr_dlist_ptr_compare(mpr_rc datum, const char * types, mpr_union *va);
+extern const char * mpr_dlist_ptr_compare_types;
 
 #endif // DLIST_H_INCLUDED

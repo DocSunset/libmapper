@@ -555,10 +555,9 @@ typedef void mpr_data_sig_handler(mpr_data_sig dsig, mpr_dataset data, mpr_data_
  *  it with a data signal, allowing other devices on the network to learn about this dataset.
  *  With a data map, data signals can become subscribed to remotely published datasets, receiving
  *  a copy of these datasets and notification of changes to them.
- *  A dataset can only be associated with one data signal, but one data signal can be associated 
- *  with an arbitrary number of datasets, such as when numerous datasets are mapped to the same 
- *  incoming dataset signal (numerous subscriptions) or when several datasets should always be 
- *  subscribed to together (numerous publications).
+ *  A dataset can only be published by one data signal, and one data signal can only publish one
+ *  dataset, but one data signal can have numerous subscriptions,  such as when numerous datasets
+ *  are mapped to the same dataset signal.
  *  \param parent        The device with which the signal will be associated.
  *  \param name          A descriptive name for the signal.
  *  \param handler       Null or pointer to the handler function for updates subscribed datasets.
@@ -575,13 +574,23 @@ mpr_data_sig mpr_data_sig_new(mpr_dev parent, const char *name,
  *  remove a signal from the network can only be made by the process that created the signal. */
 void mpr_data_sig_free(mpr_data_sig);
 
-/*! Get a list of datasets published by a signal.
+/*! Publish a dataset by adding it to an existing data signal.
+ *  A dataset can be published by adding it to a data signal. A dataset can only be associated
+ *  with one parent data signal, but one data signal can publish an arbitrary number of datasets.
+ *  When numerous datasets are published by one signal, a map originating from that signal
+ *  represents a subscription to all of the datasets that it publishes.
+ *  \param sig          The data signal with which to publish the dataset.
+ *  \param data         The dataset to publish. */
+void mpr_data_sig_publish_dataset(mpr_data_sig sig, mpr_dataset data);
+
+/*! Get the dataset published by a signal.
  *  \param sig          The signal to query.
- *  \return             A reference to a `mpr_dlist` of datasets published by the signal. 
- *                      Use e.g. `mpr_dlist_next(&list)` to iterate. 
- *                      Remember to free the list when you're done with it, if you don't iterate
- *                      all the way to the end of the list. */
-mpr_dlist mpr_data_sig_get_pubs(mpr_data_sig sig);
+ *  \return             The dataset published by this signal, or 0 if there is none. */
+mpr_dataset mpr_data_sig_get_pub(mpr_data_sig sig);
+
+/*! Remove a published dataset from the network.
+ *  \param sig          The signal publishing the dataset that should be removed from the network.*/
+void mpr_data_sig_withdraw_dataset(mpr_data_sig sig);
 
 /*! Get a list of datasets subscribed to by a signal.
  *  \param sig          The signal to query.
@@ -678,21 +687,12 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record);
  *                      name of the dataset will be used. In case a data signal already exists
  *                      with the given name, a unique ordinal will be appended to the name of the
  *                      new data signal.
- *  \param handler      Null or pointer to the handler function for updates subscribed datasets.
+ *  \param handler      Null or pointer to the handler function for updates to subscribed datasets.
  *  \param events       Events for which the handler callback should be invoked. This should
  *                      be a bitwise union of `mpr_data_evt` values defined in `mapper_constants.h`
  *  \return             The newly created data signal. */
 mpr_data_sig mpr_dataset_publish(mpr_dataset data, mpr_dev dev, const char * name,
                          mpr_data_sig_handler handler, int events);
-
-/*! Publish a dataset by adding it to an existing data signal.
- *  A dataset can be published by adding it to a data signal. A dataset can only be associated
- *  with one parent data signal, but one data signal can publish an arbitrary number of datasets.
- *  When numerous datasets are published by one signal, a map originating from that signal
- *  represents a subscription to all of the datasets that it publishes.
- *  \param data         The dataset to publish
- *  \param sig          The data signal with which to publish the dataset. */
-void mpr_dataset_publish_with_sig(mpr_dataset data, mpr_data_sig sig);
 
 /*! Withdraw a dataset from the network.
  *  This causes the association with a data signal to be removed, so that the dataset is no longer
@@ -700,7 +700,7 @@ void mpr_dataset_publish_with_sig(mpr_dataset data, mpr_data_sig sig);
  *  \param data         The dataset to withdraw. */
 void mpr_dataset_withdraw(mpr_dataset data);
 
-/*! Get the name of a dataset
+/*! Get the local-only nickname of a dataset
  *  \param data         The dataset to inspect.
  *  \param return       The name of the dataset. */
 const char * mpr_dataset_get_name(mpr_dataset data);
