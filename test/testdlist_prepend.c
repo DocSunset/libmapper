@@ -92,6 +92,7 @@ int main(int argc, char ** argv)
         fail = 1;
     }
 
+    mpr_dlist_free(front);
     printf("...................Test %s\x1B[0m.\n",
            fail ? "\x1B[31mFAILED" : "\x1B[32mPASSED");
     return fail;
