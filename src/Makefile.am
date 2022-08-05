@@ -10,6 +10,7 @@ noinst_HEADERS = mapper_internal.h \
     util/mpr_type_get_size.h \
     util/skip_slash.h \
     util/func_if.h \
+    mpr_time.h \
     types_internal.h
 EXTRA_DIST = libmapper.def
 
@@ -18,7 +19,7 @@ lt_windows = -no-undefined -export-symbols $(srcdir)/libmapper.def
 endif
 
 lib_LTLIBRARIES = libmapper.la
-libmapper_la_CFLAGS = -Wall -I$(top_srcdir)/include $(liblo_CFLAGS)
+libmapper_la_CFLAGS = -Wall -I$(top_srcdir)/include $(liblo_CFLAGS) -fsanitize=address
 libmapper_la_SOURCES = device.c \
     expression.c \
     graph.c \
@@ -39,4 +40,4 @@ libmapper_la_SOURCES = device.c \
     rc.c \
     map.c
 libmapper_la_LIBADD = $(liblo_LIBS)
-libmapper_la_LDFLAGS = $(lt_windows) -export-dynamic -version-info @SO_VERSION@
+libmapper_la_LDFLAGS = $(lt_windows) -export-dynamic -version-info @SO_VERSION@ -fsanitize=address

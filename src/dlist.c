@@ -179,54 +179,54 @@ void mpr_dlist_prepend(mpr_dlist *front, mpr_rc rc)
 static inline void _remove_cell(mpr_ll prev, mpr_ll ll, mpr_ll next)
 {
     /* we assume ll is not a null list, but either or both of prev and next may be */
-	if (prev) {
-    	mpr_rc_free((mpr_rc)prev->next);
-		prev->next = mpr_rc_make_ref((mpr_rc)next);
-	}
-	if (next) next->prev = prev;
-	if (ll) {
-		ll->prev = 0;
-		mpr_rc_free(ll->next);
-		ll->next = 0;
-	}
+    if (prev) {
+        mpr_rc_free((mpr_rc)prev->next);
+        prev->next = mpr_rc_make_ref((mpr_rc)next);
+    }
+    if (next) next->prev = prev;
+    if (ll) {
+        ll->prev = 0;
+        mpr_rc_free(ll->next);
+        ll->next = 0;
+    }
 }
 
 void mpr_dlist_pop(mpr_dlist *dst, mpr_dlist *iter)
 {
-	if (iter == 0) return;
-	if (dst) {
-    	mpr_dlist_free(*dst);
-    	*dst = 0;
-	}
-	if (*iter == 0) return; /* freeing dst is equivalent to popping a null list into it */
-	mpr_ll prev, ll, next;
-	prev = ll = next = 0;
-	ll = _ll_from_dlist(mpr_dlist_make_ref(*iter));
-	mpr_dlist_next(iter);
-	prev = ll->prev;
-	next = _ll_from_dlist(*iter);
-	_remove_cell(prev, ll, next);
-	mpr_dlist dlist = _dlist_from_ll(ll);
-	mpr_dlist_move(dst, &dlist);
+    if (iter == 0) return;
+    if (dst) {
+        mpr_dlist_free(*dst);
+        *dst = 0;
+    }
+    if (*iter == 0) return; /* freeing dst is equivalent to popping a null list into it */
+    mpr_ll prev, ll, next;
+    prev = ll = next = 0;
+    ll = _ll_from_dlist(mpr_dlist_make_ref(*iter));
+    mpr_dlist_next(iter);
+    prev = ll->prev;
+    next = _ll_from_dlist(*iter);
+    _remove_cell(prev, ll, next);
+    mpr_dlist dlist = _dlist_from_ll(ll);
+    mpr_dlist_move(dst, &dlist);
 }
 
 void mpr_dlist_rpop(mpr_dlist *dst, mpr_dlist *iter)
 {
-	if (iter == 0) return;
-	if (dst) {
-    	mpr_dlist_free(*dst);
-    	*dst = 0;
-	}
-	if (*iter == 0) return; /* freeing dst is equivalent to popping a null list into it */
-	mpr_ll prev, ll, next;
-	prev = ll = next = 0;
-	ll = _ll_from_dlist(mpr_dlist_make_ref(*iter));
-	mpr_dlist_prev(iter);
-	next = ll->next;
-	prev = _ll_from_dlist(*iter);
-	_remove_cell(prev, ll, next);
-	mpr_dlist dlist = _dlist_from_ll(ll);
-	mpr_dlist_move(dst, &dlist);
+    if (iter == 0) return;
+    if (dst) {
+        mpr_dlist_free(*dst);
+        *dst = 0;
+    }
+    if (*iter == 0) return; /* freeing dst is equivalent to popping a null list into it */
+    mpr_ll prev, ll, next;
+    prev = ll = next = 0;
+    ll = _ll_from_dlist(mpr_dlist_make_ref(*iter));
+    mpr_dlist_prev(iter);
+    next = ll->next;
+    prev = _ll_from_dlist(*iter);
+    _remove_cell(prev, ll, next);
+    mpr_dlist dlist = _dlist_from_ll(ll);
+    mpr_dlist_move(dst, &dlist);
 }
 
 void _query_next(mpr_dlist *iter, mpr_ll ql)

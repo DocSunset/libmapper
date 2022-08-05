@@ -8,6 +8,7 @@
 #include "device.h"
 #include "network.h"
 #include "graph.h"
+#include "mpr_time.h"
 #include "util/func_if.h"
 #include "util/mpr_type_get_size.h"
 #include "util/debug_macro.h"
@@ -121,7 +122,7 @@ void mpr_dataset_add_record(mpr_dataset data, const mpr_data_record record)
 
     mpr_dlist iter;
     for (iter = mpr_dlist_make_ref(data->sigs); iter; mpr_dlist_next(&iter)) {
-        mpr_sig data_sig = *(mpr_sig*)iter;
+        mpr_sig data_sig = **(mpr_sig**)iter;
         if (record->sig->obj.id == data_sig->obj.id) break;
     }
     if (iter == 0) {
@@ -167,6 +168,17 @@ mpr_dlist mpr_dataset_get_sigs(mpr_dataset data)
     return mpr_dlist_make_ref(data->sigs);
 }
 
+double mpr_dataset_get_duration(mpr_dataset data)
+{
+    RETURN_ARG_UNLESS(data && data->recs.front && data->recs.back, 0);
+    mpr_dlist front = data->recs.front;
+    mpr_dlist back = data->recs.back;
+    mpr_time start = (*(mpr_data_record*)front)->time;
+    mpr_time end   = (*(mpr_data_record*)back)->time;
+    data->duration = mpr_time_get_diff(end, start);
+    return data->duration;
+}
+
 /* DATATODO: implement dataset publish method */
 mpr_data_sig mpr_dataset_publish(mpr_dataset data, mpr_dev dev, const char * name,
                          mpr_data_sig_handler handler, int events)
@@ -181,6 +193,13 @@ void mpr_dataset_withdraw(mpr_dataset data)
 }
 
 /* Data recorders */
+
+void mpr_data_recorder_destructor(mpr_rc rc)
+{
+    mpr_data_recorder rec = (mpr_data_recorder)rc;
+    mpr_dev_free(rec->dev);
+    free(rec->sigs);
+}
 
 mpr_data_recorder mpr_data_recorder_new(const char * name, mpr_graph g, unsigned int num_sigs, mpr_sig * sigs)
 {
@@ -199,15 +218,15 @@ mpr_data_recorder mpr_data_recorder_new(const char * name, mpr_graph g, unsigned
     mpr_dev dev = mpr_dev_new(dev_name, g);
     RETURN_ARG_UNLESS(dev, 0);
 
-    mpr_data_recorder rec = malloc(sizeof(mpr_data_recorder_t));
-
+    mpr_data_recorder rec = (mpr_data_recorder)mpr_rc_new(sizeof(mpr_data_recorder_t), &mpr_data_recorder_destructor);
     rec->dev = dev;
-    rec->data = mpr_dataset_new(dev_name, 0);
+    rec->buffer = mpr_dataset_new(dev_name, 0);
     rec->num_sigs = num_sigs;
     rec->mapped = 0;
     rec->armed = 0;
     rec->recording = 0;
     rec->remote_sigs = sigs;
+    /* DATATODO: these sigs may outlive the recorder, which could be an issue */
     rec->sigs = calloc(num_sigs, sizeof(mpr_sig *));
 
     /* make a local destination for the signals to record */
@@ -234,10 +253,7 @@ mpr_data_recorder mpr_data_recorder_new(const char * name, mpr_graph g, unsigned
 
 void mpr_data_recorder_free(mpr_data_recorder rec)
 {
-    RETURN_UNLESS(rec);
-    mpr_dev_free(rec->dev);
-    free(rec->sigs);
-    free(rec);
+    mpr_rc_free(rec);
 }
 
 int mpr_data_recorder_get_is_ready(mpr_data_recorder rec)
@@ -294,7 +310,12 @@ static void sig_handler(mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int lengt
     mpr_time_set(&t, MPR_NOW);
     mpr_data_record record = mpr_data_record_new(sig, evt, instance, length, type, value, t);
     if (0 == record) return;
-    mpr_dataset_add_record(rec->data, record);
+    mpr_dataset_add_record(rec->buffer, record);
+    if (rec->buffer_duration <= 0) return;
+    mpr_dlist oldest_record = mpr_dlist_make_ref(rec->buffer->recs.front);
+    while (mpr_time_get_diff(t, (*(mpr_data_record*)oldest_record)->time) > rec->buffer_duration) {
+        mpr_dlist_pop(&oldest_record, &rec->buffer->recs.front);
+    }
 }
 
 static inline void _maybe_add_recording(mpr_data_recorder rec)
@@ -303,8 +324,8 @@ static inline void _maybe_add_recording(mpr_data_recorder rec)
         /* DATATODO: provide better generic names */
         mpr_dataset data = mpr_dataset_new("recording", 0);
         /* set the dataset's list to the bounds of the recorder's data buffer */
-        data->recs.front = mpr_dlist_make_ref(rec->data->recs.front);
-        data->recs.back  = mpr_dlist_make_ref(rec->data->recs.back);
+        data->recs.front = mpr_dlist_make_ref(rec->buffer->recs.front);
+        data->recs.back  = mpr_dlist_make_ref(rec->buffer->recs.back);
         mpr_dlist_prepend(&rec->recordings, (mpr_rc)data);
     }
 }
@@ -312,8 +333,20 @@ static inline void _maybe_add_recording(mpr_data_recorder rec)
 void mpr_data_recorder_start(mpr_data_recorder rec)
 {
     RETURN_UNLESS(rec);
-    _maybe_add_recording(rec);
+    if (rec->recording) return;
     rec->recording = mpr_dev_get_is_ready(rec->dev) && mpr_data_recorder_get_is_armed(rec) && _recorder_maps_are_ready(rec);
+}
+
+void mpr_data_recorder_commit(mpr_data_recorder rec)
+{
+    RETURN_UNLESS(rec);
+    _maybe_add_recording(rec);
+}
+
+void mpr_data_recorder_set_buffer_duration(mpr_data_recorder rec, double buffer_duration)
+{
+    RETURN_UNLESS(rec);
+    rec->buffer_duration = buffer_duration;
 }
 
 void mpr_data_recorder_stop(mpr_data_recorder rec)

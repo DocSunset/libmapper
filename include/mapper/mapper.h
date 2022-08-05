@@ -734,6 +734,12 @@ unsigned int mpr_dataset_get_num_records(mpr_dataset data);
  *                      all the way to the end of the list. */
 mpr_dlist mpr_dataset_get_sigs(mpr_dataset data);
 
+/*! Get the duration in seconds of a dataset.
+ *  \param data         The dataset to inspect.
+ *  \return             The duration of the dataset in seconds, computed as the difference between
+ *                      the timestamp on the first and last records. */
+double mpr_dataset_get_duration(mpr_dataset data);
+
 /*! Create a new data recorder. 
  *  \param name         Optional name for the recorder device.
  *                      If null is passed, a generic name will be used.
@@ -784,11 +790,30 @@ int mpr_data_recorder_get_is_armed(mpr_data_recorder recorder);
  *  \param recorder     The recorder to disarm. */
 void mpr_data_recorder_disarm(mpr_data_recorder recorder);
 
-/*! Attempt to start recording data into a dataset. If the recorder is not armed, this has no effect.
- *  \param recorder     The recorder to record with. */
+/*! Attempt to start recording data into a dataset.
+ *  If the recorder is not armed, this has no effect. Otherwise, the next and all subsequent
+ *  signal events received by the recorder device will be addded to a buffer dataset
+ *  until recording is stopped or the system runs out of memory.
+ * 
+ *  \param recorder         The recorder to record with. */
 void mpr_data_recorder_start(mpr_data_recorder recorder);
 
+/*! Commit the current recording buffer dataset to the recordings list without stopping playback
+ * \param recorder  The recorder whose buffer should be committed to its recordings list. */
+void mpr_data_recorder_commit(mpr_data_recorder recorder);
+
+/*! Change the recording buffer duration limit.
+ *
+ *  If the buffer duration is set less than or equal to 0, the recording will grow as long as
+ *  there is memory and recording is not stopped. Otherwise, the duration of the recording will be
+ *  limited so that it is less than or equal to the given duration in seconds. This can be set
+ *  regardless of the state of the recorder (armed, recording, or otherwise).
+ *
+ *  \param buffer_duration  The duration of the record buffer. */
+void mpr_data_recorder_set_buffer_duration(mpr_data_recorder recorder, double buffer_duration);
+
 /*! Stop recording data into a dataset. If the recorder is not recording this has no effect.
+ *  Otherwise, this commits the current record buffer and stops recording.
  *  \param recorder     The recorder to stop recording with. */
 void mpr_data_recorder_stop(mpr_data_recorder recorder);
 

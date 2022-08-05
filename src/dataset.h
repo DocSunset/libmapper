@@ -80,7 +80,8 @@ typedef struct _mpr_data_recorder {
     unsigned int num_sigs;
     mpr_sig * remote_sigs;
     mpr_sig * sigs;
-    mpr_dataset data;
+    mpr_dataset buffer;
+    double buffer_duration;
     mpr_dlist recordings;
 } mpr_data_recorder_t, *mpr_data_recorder;
 

@@ -1,6 +1,6 @@
 if TESTS
-TEST_CFLAGS = -Wall -I$(top_srcdir)/include @liblo_CFLAGS@
-TEST_CXXFLAGS = -Wall -I$(top_srcdir)/include @liblo_CFLAGS@
+TEST_CFLAGS = -Wall -I$(top_srcdir)/include @liblo_CFLAGS@ -fsanitize=address
+TEST_CXXFLAGS = -Wall -I$(top_srcdir)/include @liblo_CFLAGS@ -fsanitize=address
 
 # note to maintainers: when adding tests to the backslash seperated lists below,
 # make sure to leave the last line as "test" to avoid merge/rebase conflicts
@@ -46,6 +46,7 @@ if WINDOWS_DLL
         testdlist_prepend \
         testdatasetpubsub \
         testdlist_filter \
+        testdatasetringrecord \
         test
 
     test_all_ordered = \
@@ -85,6 +86,7 @@ if WINDOWS_DLL
         testdlist_prepend \
         testdatasetpubsub \
         testdlist_filter \
+        testdatasetringrecord \
         test
 
 else
@@ -130,6 +132,7 @@ else
         testdlist_prepend \
         testdatasetpubsub \
         testdlist_filter \
+        testdatasetringrecord \
         test
 
     test_all_ordered = \
@@ -171,6 +174,7 @@ else
         testdlist_prepend \
         testdatasetpubsub \
         testdlist_filter \
+        testdatasetringrecord \
         test
 
 endif
@@ -338,6 +342,10 @@ testdatasetpubsub_LDADD = $(TEST_LDADD)
 testdlist_filter_CFLAGS = $(TEST_CFLAGS)
 testdlist_filter_SOURCES = testdlist_filter.c
 testdlist_filter_LDADD = $(TEST_LDADD)
+
+testdatasetringrecord_CFLAGS = $(TEST_CFLAGS)
+testdatasetringrecord_SOURCES = testdatasetringrecord.c
+testdatasetringrecord_LDADD = $(TEST_LDADD)
 
 tests: all
 	for i in $(test_all_ordered); do echo Running $$i; ./$$i -qtf; done

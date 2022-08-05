@@ -311,14 +311,7 @@ mpr_list mpr_list_start(mpr_list list);
 
 /**** Time ****/
 
-/*! Get the current time. */
-double mpr_get_current_time(void);
-
-/*! Return the difference in seconds between two mpr_times.
- *  \param minuend      The minuend.
- *  \param subtrahend   The subtrahend.
- *  \return             The difference a-b in seconds. */
-double mpr_time_get_diff(mpr_time minuend, mpr_time subtrahend);
+#include "mpr_time.h"
 
 /**** Properties ****/
 

@@ -1,4 +1,5 @@
 #include <mapper/mapper.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -12,7 +13,6 @@ mpr_sig sigs[24];
 #define NUM_SIGS (sizeof(sigs)/sizeof(sigs[0]))
 
 int verbose = 1;
-int terminate = 0;
 int done = 0;
 char * iface = 0;
 
@@ -160,18 +160,14 @@ void parse_args(int argc, char ** argv)
             for (j = 1; j < len; j++) {
                 switch (argv[i][j]) {
                     case 'h':
-                        printf("testdatasetrecord.c: possible arguments "
+                        printf("testdatasetringrecord.c: possible arguments "
                                "-q quiet (suppress output), "
-                               "-t terminate automatically, "
                                "-h help, "
                                "--iface network interface\n");
                         exit(1);
                         break;
                     case 'q':
                         verbose = 0;
-                        break;
-                    case 't':
-                        terminate = 1;
                         break;
                     case '-':
                         if (strcmp(argv[i], "--iface")==0 && argc>i+1) {
@@ -225,17 +221,17 @@ int main(int argc, char ** argv)
     if (done) goto done;
 
     eprintf("Starting recording.\n");
+    double buffer_duration = 1;
+    mpr_data_recorder_set_buffer_duration(rec, buffer_duration);
     mpr_data_recorder_start(rec);
     if (done) goto done;
 
     eprintf("Entering loop.\n");
     int i = 0;
-    unsigned int updates_sent, updates_recorded;
-    updates_recorded = updates_sent = 0;
-    while((!terminate || i < 10) && !done) {
-        printf(".");
-        updates_sent += update_signals(i);
-        mpr_data_recorder_poll(rec, 200);
+    while(i < 20 && !done) {
+        write(STDOUT_FILENO, ".", 1);
+        update_signals(i);
+        mpr_data_recorder_poll(rec, 100);
         ++i;
     }
 
@@ -245,18 +241,11 @@ int main(int argc, char ** argv)
 
     eprintf("Getting dataset.\n");
     mpr_dlist datalist = mpr_data_recorder_get_recordings(rec);
-    data = mpr_rc_make_ref(*(mpr_dataset*)datalist);
-    mpr_dlist_free(datalist);
+    data = *(mpr_dataset*)datalist;
 
-    eprintf("Checking number of records\n");
-    mpr_dlist records;
-    for (records = mpr_dataset_get_records(data); records; mpr_dlist_next(&records)) {
-        mpr_data_record record = *(mpr_data_record*)records;
-        if (mpr_data_record_get_evt(record) == MPR_SIG_UPDATE) ++updates_recorded;
-    }
-
-    eprintf("%d signal updates noted, %d data records stored.\n", updates_sent, updates_recorded);
-    if (updates_recorded != updates_sent) result = 1;
+    double duration = mpr_dataset_get_duration(data);
+    eprintf("Recording duration is %G.4\n", duration);
+    if (duration <= 0 || duration > buffer_duration) result = 1;
 
   done:
     eprintf("Cleaning up devices\n");
