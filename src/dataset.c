@@ -198,6 +198,8 @@ void mpr_data_recorder_destructor(mpr_rc rc)
 {
     mpr_data_recorder rec = (mpr_data_recorder)rc;
     mpr_dev_free(rec->dev);
+    mpr_dataset_free(rec->buffer);
+    mpr_dlist_free(rec->recordings);
     free(rec->sigs);
 }
 
@@ -225,8 +227,8 @@ mpr_data_recorder mpr_data_recorder_new(const char * name, mpr_graph g, unsigned
     rec->mapped = 0;
     rec->armed = 0;
     rec->recording = 0;
-    rec->remote_sigs = sigs;
     /* DATATODO: these sigs may outlive the recorder, which could be an issue */
+    rec->remote_sigs = sigs;
     rec->sigs = calloc(num_sigs, sizeof(mpr_sig *));
 
     /* make a local destination for the signals to record */
@@ -316,6 +318,7 @@ static void sig_handler(mpr_sig sig, mpr_sig_evt evt, mpr_id instance, int lengt
     while (mpr_time_get_diff(t, (*(mpr_data_record*)oldest_record)->time) > rec->buffer_duration) {
         mpr_dlist_pop(&oldest_record, &rec->buffer->recs.front);
     }
+    mpr_dlist_free(oldest_record);
 }
 
 static inline void _maybe_add_recording(mpr_data_recorder rec)

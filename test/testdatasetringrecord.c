@@ -242,6 +242,7 @@ int main(int argc, char ** argv)
     eprintf("Getting dataset.\n");
     mpr_dlist datalist = mpr_data_recorder_get_recordings(rec);
     data = *(mpr_dataset*)datalist;
+    mpr_dlist_free(datalist);
 
     double duration = mpr_dataset_get_duration(data);
     eprintf("Recording duration is %G.4\n", duration);
@@ -253,9 +254,6 @@ int main(int argc, char ** argv)
 
     eprintf("Releasing recorder\n");
     mpr_data_recorder_free(rec);
-
-    eprintf("Releasing dataset\n");
-    mpr_dataset_free(data);
 
     printf("...................Test %s\x1B[0m.\n",
            result ? "\x1B[31mFAILED" : "\x1B[32mPASSED");
