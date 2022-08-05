@@ -41,8 +41,7 @@ typedef mpr_rc *mpr_dlist;
  * reference before passing `data` into the dlist. This applies also to the insertion methods
  * below.
  * \param data  The rc cell that the list should refer to.
- * \return  A newly allocated list.
- */
+ * \return  A newly allocated list. */
 mpr_dlist mpr_dlist_new(mpr_rc data);
 
 /*! Free a list cell. This decrements the reference count of the data referred to by the list. */
@@ -186,7 +185,7 @@ void mpr_dlist_evaluate_filter(mpr_dlist filter_front);
 
 /*! Compare two pointers. The source list is assumed to be a list of pointers to objects,
  * such as datasets or signals. The user should supply a mpr_op and a pointer to compare with.
- * Example: To find a specific pointer in a list of pointers,
+ * For example, to find a specific pointer in a list of pointers:
  * ```
  * void * ptr = 100;
  * mpr_dlist found = mpr_dlist_new_filter(src,
